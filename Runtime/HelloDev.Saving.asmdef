@@ -1,0 +1,16 @@
+{
+    "name": "HelloDev.Saving",
+    "rootNamespace": "HelloDev.Saving",
+    "references": [
+        "HelloDev.Utils"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
