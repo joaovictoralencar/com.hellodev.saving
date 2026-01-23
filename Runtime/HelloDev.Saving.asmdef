@@ -2,7 +2,8 @@
     "name": "HelloDev.Saving",
     "rootNamespace": "HelloDev.Saving",
     "references": [
-        "HelloDev.Utils"
+        "HelloDev.Utils",
+        "HelloDev.Bootstrap"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

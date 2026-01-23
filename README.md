@@ -185,12 +185,6 @@ The manager:
 
 - com.hellodev.utils (1.4.0+)
 
-## Changelog
-
-### v1.0.0
-- Initial release as standalone package
-- Extracted from com.hellodev.utils
-
 ## License
 
 MIT License

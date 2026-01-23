@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HelloDev.Bootstrap;
 using HelloDev.Logging;
 using HelloDev.Utils;
 using UnityEngine;
@@ -98,31 +99,37 @@ namespace HelloDev.Saving
         /// <summary>
         /// Fired before a save operation starts.
         /// </summary>
+        [HideInInspector]
         public UnityEvent<string> OnBeforeSave = new();
 
         /// <summary>
         /// Fired after a save operation completes.
         /// </summary>
+        [HideInInspector]
         public UnityEvent<string, bool> OnAfterSave = new();
 
         /// <summary>
         /// Fired before a load operation starts.
         /// </summary>
+        [HideInInspector]
         public UnityEvent<string> OnBeforeLoad = new();
 
         /// <summary>
         /// Fired after a load operation completes.
         /// </summary>
+        [HideInInspector]
         public UnityEvent<string, bool> OnAfterLoad = new();
 
         /// <summary>
         /// Fired when a system registers.
         /// </summary>
+        [HideInInspector]
         public UnityEvent<ISaveableSystem> OnSystemRegistered = new();
 
         /// <summary>
         /// Fired when a system unregisters.
         /// </summary>
+        [HideInInspector]
         public UnityEvent<ISaveableSystem> OnSystemUnregistered = new();
 
         #endregion
@@ -156,7 +163,11 @@ namespace HelloDev.Saving
         /// <summary>
         /// Whether this manager should self-initialize.
         /// </summary>
-        public bool SelfInitialize => selfInitialize;
+        public bool SelfInitialize
+        {
+            get => selfInitialize;
+            set => selfInitialize = value;
+        }
 
         /// <summary>
         /// Priority 50 - Core services phase. Runs early so other systems can register.
@@ -195,13 +206,29 @@ namespace HelloDev.Saving
 
             Logger.Log(LogSystems.Save, "UnifiedSaveManager initialized.");
 
-            // Auto-load if configured (done after initialization so systems can register)
+            // Auto-load AFTER all bootstrap systems are ready (so all snapshot providers are registered)
             if (autoLoadOnStart && !string.IsNullOrEmpty(defaultSlotKey))
             {
-                // Wait a frame to allow saveable systems to register
-                await Task.Yield();
-                await AutoLoadAsync();
+                if (GameBootstrap.IsReady)
+                {
+                    // Bootstrap already complete, load immediately
+                    await AutoLoadAsync();
+                }
+                else
+                {
+                    // Subscribe to bootstrap complete event
+                    GameBootstrap.OnBootstrapComplete += OnBootstrapCompleteAutoLoad;
+                }
             }
+        }
+
+        /// <summary>
+        /// Handler for auto-load after bootstrap completes.
+        /// </summary>
+        private async void OnBootstrapCompleteAutoLoad()
+        {
+            GameBootstrap.OnBootstrapComplete -= OnBootstrapCompleteAutoLoad;
+            await AutoLoadAsync();
         }
 
         /// <summary>
@@ -737,6 +764,25 @@ namespace HelloDev.Saving
             {
                 Debug.Log($"  [{system.SavePriority}] {system.SystemKey} ({system.SnapshotType.Name})");
             }
+        }
+
+        [Button("Open Save Folder", ButtonSizes.Medium)]
+        [PropertyOrder(213)]
+        [GUIColor(0.8f, 0.8f, 0.4f)]
+        private void DebugOpenSaveFolder()
+        {
+            if (settings == null)
+            {
+                Logger.LogError(LogSystems.Save, "No settings configured");
+                return;
+            }
+
+            string path = settings.SaveDirectoryPath;
+            if (!System.IO.Directory.Exists(path))
+            {
+                System.IO.Directory.CreateDirectory(path);
+            }
+            UnityEditor.EditorUtility.RevealInFinder(path);
         }
 
         [Button("Delete Debug Save", ButtonSizes.Medium)]
