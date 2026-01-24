@@ -34,13 +34,6 @@ namespace HelloDev.Saving
         private SaveSystemSettings_SO settings;
 
 #if ODIN_INSPECTOR
-        [Required]
-#endif
-        [SerializeField]
-        [Tooltip("Locator for decoupled access to this manager.")]
-        private UnifiedSaveLocator_SO locator;
-
-#if ODIN_INSPECTOR
         [Title("Initialization")]
         [ToggleLeft]
         [InfoBox("Disable when using GameBootstrap for coordinated initialization.")]
@@ -89,6 +82,7 @@ namespace HelloDev.Saving
         #region Private Fields
 
         private readonly List<ISaveableSystem> _registeredSystems = new();
+        private GameContext _context;
         private bool _isInitialized;
         private float _autoSaveTimer;
 
@@ -180,6 +174,15 @@ namespace HelloDev.Saving
         bool IBootstrapInitializable.IsInitialized => _isInitialized;
 
         /// <summary>
+        /// Receives the game context from GameBootstrap.
+        /// </summary>
+        /// <param name="context">The game context for service registration.</param>
+        public void ReceiveContext(GameContext context)
+        {
+            _context = context;
+        }
+
+        /// <summary>
         /// Initializes the save manager and configures the global SaveService.
         /// </summary>
         public async Task InitializeAsync()
@@ -198,8 +201,8 @@ namespace HelloDev.Saving
             settings.ConfigureSaveService();
             Logger.Log(LogSystems.Save, $"SaveService configured: {settings.SaveSubdirectory}/{settings.FileExtension}");
 
-            // Register with locator
-            RegisterWithLocator();
+            // Self-register to context
+            _context?.Register<UnifiedSaveManager>(this);
 
             _isInitialized = true;
             _autoSaveTimer = autoSaveInterval;
@@ -236,7 +239,7 @@ namespace HelloDev.Saving
         /// </summary>
         public void Shutdown()
         {
-            UnregisterFromLocator();
+            _context?.Unregister<UnifiedSaveManager>();
             _registeredSystems.Clear();
             _isInitialized = false;
             Logger.Log(LogSystems.Save, "UnifiedSaveManager shutdown.");
@@ -260,11 +263,6 @@ namespace HelloDev.Saving
             {
                 _ = InitializeAsync();
             }
-        }
-
-        private void OnDisable()
-        {
-            UnregisterFromLocator();
         }
 
         private void Update()
@@ -292,39 +290,6 @@ namespace HelloDev.Saving
             if (_isInitialized && autoSaveOnPause && pauseStatus && !string.IsNullOrEmpty(defaultSlotKey))
             {
                 _ = AutoSaveAsync("pause");
-            }
-        }
-
-        private void RegisterWithLocator()
-        {
-            if (locator != null)
-            {
-                locator.Register(this);
-
-                // Forward events to locator
-                OnBeforeSave.AddListener(slot => locator.OnBeforeSave?.Invoke(slot));
-                OnAfterSave.AddListener((slot, success) => locator.OnAfterSave?.Invoke(slot, success));
-                OnBeforeLoad.AddListener(slot => locator.OnBeforeLoad?.Invoke(slot));
-                OnAfterLoad.AddListener((slot, success) => locator.OnAfterLoad?.Invoke(slot, success));
-
-                Logger.LogVerbose(LogSystems.Save, "UnifiedSaveManager registered with locator");
-            }
-            else
-            {
-                Logger.LogWarning(LogSystems.Save, $"No locator assigned on {name}");
-            }
-        }
-
-        private void UnregisterFromLocator()
-        {
-            if (locator != null)
-            {
-                OnBeforeSave.RemoveAllListeners();
-                OnAfterSave.RemoveAllListeners();
-                OnBeforeLoad.RemoveAllListeners();
-                OnAfterLoad.RemoveAllListeners();
-
-                locator.Unregister(this);
             }
         }
 
@@ -701,10 +666,6 @@ namespace HelloDev.Saving
 
         [ShowInInspector, ReadOnly]
         [PropertyOrder(200)]
-        private bool LocatorRegistered => locator != null && locator.IsAvailable;
-
-        [ShowInInspector, ReadOnly]
-        [PropertyOrder(201)]
         private bool ProviderConfigured => SaveService.IsConfigured;
 
         [ShowInInspector, ReadOnly]

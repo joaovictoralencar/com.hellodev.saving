@@ -9,8 +9,8 @@ Unified save system for Unity games. Provides a centralized manager that coordin
 - **ISaveProvider** - Interface for different storage backends (JSON, binary, cloud)
 - **JsonSaveProvider** - Built-in JSON file persistence with pretty-print option
 - **Slot-based Saving** - Multiple save slots with metadata
-- **Auto-save Support** - Configurable auto-save intervals
-- **Locator Pattern** - Decoupled access via UnifiedSaveLocator_SO
+- **Auto-save Support** - Configurable auto-save on quit, pause, or interval
+- **GameContext Integration** - Self-registers with bootstrap's GameContext for decoupled access
 - **Bootstrap Integration** - Works with GameBootstrap for coordinated initialization
 
 ## Getting Started
@@ -27,8 +27,7 @@ Unified save system for Unity games. Provides a centralized manager that coordin
 ### 2. Create Required Assets
 
 1. Right-click in Project window
-2. Create **HelloDev > Saving > Save System Settings** - Configure paths, auto-save, etc.
-3. Create **HelloDev > Locators > Unified Save Locator** - For decoupled access
+2. Create **HelloDev > Saving > Save System Settings** - Configure paths, file extension, etc.
 
 ### 3. Set Up UnifiedSaveManager
 
@@ -37,8 +36,8 @@ Add `UnifiedSaveManager` component to a GameObject (typically on a persistent ma
 ```csharp
 // The manager is configured via inspector:
 // - Settings: SaveSystemSettings_SO asset
-// - Locator: UnifiedSaveLocator_SO asset
 // - Self Initialize: true for standalone, false when using GameBootstrap
+// - Auto-save options: on quit, on pause, or interval-based
 ```
 
 ### 4. Implement ISaveableSystem
@@ -85,48 +84,64 @@ public class InventorySnapshot
 
 ### 5. Register Systems with the Manager
 
+Systems can register with the save manager during bootstrap via GameContext:
+
 ```csharp
 using HelloDev.Saving;
+using HelloDev.Utils;
 using UnityEngine;
 
-public class GameManager : MonoBehaviour
+public class InventoryManager : MonoBehaviour, IBootstrapInitializable, ISaveableSystem
 {
-    [SerializeField] private UnifiedSaveLocator_SO saveLocator;
+    private GameContext _context;
 
-    private InventoryManager _inventory;
+    public void ReceiveContext(GameContext context) => _context = context;
 
-    void Start()
+    public Task InitializeAsync()
     {
-        _inventory = new InventoryManager();
-
-        if (saveLocator.IsAvailable)
+        // Access the save manager from context and register
+        if (_context.TryGet<UnifiedSaveManager>(out var saveManager))
         {
-            saveLocator.Manager.RegisterSystem(_inventory);
+            saveManager.RegisterSystem(this);
         }
+        return Task.CompletedTask;
     }
+
+    // ISaveableSystem implementation...
+}
+```
+
+Or register via direct reference:
+
+```csharp
+[SerializeField] private UnifiedSaveManager saveManager;
+
+void Start()
+{
+    saveManager.RegisterSystem(new InventorySystem());
 }
 ```
 
 ### 6. Save and Load
 
 ```csharp
-// Save to current slot
-await saveLocator.Manager.SaveAsync();
+// Get save manager from context or direct reference
+var saveManager = _context.Get<UnifiedSaveManager>();
 
-// Save to specific slot
-await saveLocator.Manager.SaveAsync(slotIndex: 1);
+// Save to a slot
+await saveManager.SaveAsync("slot_1");
 
-// Load from current slot
-await saveLocator.Manager.LoadAsync();
-
-// Load from specific slot
-await saveLocator.Manager.LoadAsync(slotIndex: 1);
+// Load from a slot
+await saveManager.LoadAsync("slot_1");
 
 // Check if slot has data
-bool hasSave = saveLocator.Manager.HasSaveData(slotIndex: 0);
+bool exists = await saveManager.SaveExistsAsync("slot_1");
 
 // Delete save data
-saveLocator.Manager.DeleteSave(slotIndex: 0);
+await saveManager.DeleteSaveAsync("slot_1");
+
+// Get slot metadata
+var metadata = await saveManager.GetMetadataAsync("slot_1");
 ```
 
 ## Architecture
@@ -155,14 +170,15 @@ The manager:
 |--------|-------------|
 | `RegisterSystem(ISaveableSystem)` | Register a system for save/load |
 | `UnregisterSystem(ISaveableSystem)` | Remove a system |
-| `SaveAsync(int slot)` | Save all systems to slot |
-| `LoadAsync(int slot)` | Load all systems from slot |
-| `HasSaveData(int slot)` | Check if slot has data |
-| `DeleteSave(int slot)` | Delete save at slot |
-| `GetSlotMetadata(int slot)` | Get save metadata |
-| `CurrentSlot` | Active save slot index |
-| `IsSaving` | True during save operation |
-| `IsLoading` | True during load operation |
+| `SaveAsync(string slotKey)` | Save all systems to slot |
+| `LoadAsync(string slotKey)` | Load all systems from slot |
+| `SaveExistsAsync(string slotKey)` | Check if slot has data |
+| `DeleteSaveAsync(string slotKey)` | Delete save at slot |
+| `GetMetadataAsync(string slotKey)` | Get save metadata |
+| `RegisteredSystems` | Read-only list of registered systems |
+| `DefaultSlotKey` | Default slot for auto-save/load |
+| `HasProvider` | True if save provider is configured |
+| `ReceiveContext(GameContext)` | Called by bootstrap for service registration |
 
 ### ISaveableSystem
 | Member | Description |
