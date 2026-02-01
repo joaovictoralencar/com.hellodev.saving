@@ -164,11 +164,6 @@ namespace HelloDev.Saving
         }
 
         /// <summary>
-        /// Priority 50 - Core services phase. Runs early so other systems can register.
-        /// </summary>
-        public int InitializationPriority => 50;
-
-        /// <summary>
         /// Whether this manager has completed initialization.
         /// </summary>
         bool IBootstrapInitializable.IsInitialized => _isInitialized;
