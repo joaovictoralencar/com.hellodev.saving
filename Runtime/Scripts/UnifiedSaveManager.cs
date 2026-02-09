@@ -359,12 +359,12 @@ namespace HelloDev.Saving
                 Timestamp = DateTime.UtcNow.ToString("O")
             };
 
-            foreach (var system in _registeredSystems)
+            foreach (ISaveableSystem system in _registeredSystems)
             {
                 try
                 {
                     system.OnBeforeSave();
-                    var systemSnapshot = system.CaptureSnapshot();
+                    object systemSnapshot = system.CaptureSnapshot();
 
                     if (systemSnapshot != null)
                     {
@@ -716,7 +716,7 @@ namespace HelloDev.Saving
         private void DebugLogSystems()
         {
             Debug.Log($"<color=#A8D8EA><b>=== REGISTERED SYSTEMS ({_registeredSystems.Count}) ===</b></color>");
-            foreach (var system in _registeredSystems)
+            foreach (ISaveableSystem system in _registeredSystems)
             {
                 Debug.Log($"  [{system.SavePriority}] {system.SystemKey} ({system.SnapshotType.Name})");
             }
