@@ -13,14 +13,6 @@ namespace HelloDev.Saving
     /// This follows the same pattern as TweenService - a static service with
     /// a pluggable provider that can be implemented by any save system.
     /// </summary>
-    /// <example>
-    /// // At application startup (e.g., in a bootstrap script)
-    /// SaveService.SetProvider(new JsonSaveProvider());
-    ///
-    /// // Usage anywhere in the application
-    /// await SaveService.Provider.SaveAsync("player.inventory", inventoryData);
-    /// var inventory = await SaveService.Provider.LoadAsync&lt;InventoryData&gt;("player.inventory");
-    /// </example>
     public static class SaveService
     {
         private static ISaveProvider _provider;

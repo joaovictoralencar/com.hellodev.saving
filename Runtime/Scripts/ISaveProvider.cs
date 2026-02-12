@@ -9,28 +9,6 @@ namespace HelloDev.Saving
     /// The SaveService uses this interface to save/load data without being coupled
     /// to a specific storage implementation.
     /// </summary>
-    /// <example>
-    /// // Example: JSON file implementation
-    /// public class JsonSaveProvider : ISaveProvider
-    /// {
-    ///     public async Task&lt;bool&gt; SaveAsync&lt;T&gt;(string key, T data)
-    ///     {
-    ///         var json = JsonUtility.ToJson(data, true);
-    ///         await File.WriteAllTextAsync($"{key}.json", json);
-    ///         return true;
-    ///     }
-    /// }
-    ///
-    /// // Example: Easy Save 3 implementation
-    /// public class ES3SaveProvider : ISaveProvider
-    /// {
-    ///     public Task&lt;bool&gt; SaveAsync&lt;T&gt;(string key, T data)
-    ///     {
-    ///         ES3.Save(key, data);
-    ///         return Task.FromResult(true);
-    ///     }
-    /// }
-    /// </example>
     public interface ISaveProvider
     {
         /// <summary>
@@ -69,13 +47,6 @@ namespace HelloDev.Saving
         /// </summary>
         /// <param name="prefix">Optional prefix to filter keys (e.g., "quest.", "inventory.").</param>
         /// <returns>Array of matching keys.</returns>
-        /// <example>
-        /// // Get all quest saves
-        /// var questKeys = await provider.GetKeysAsync("quest.");
-        ///
-        /// // Get all saves
-        /// var allKeys = await provider.GetKeysAsync();
-        /// </example>
         Task<string[]> GetKeysAsync(string prefix = null);
     }
 }

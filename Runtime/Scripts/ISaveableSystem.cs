@@ -6,17 +6,6 @@ namespace HelloDev.Saving
     /// Interface for systems that can be saved/loaded by the unified save system.
     /// Implement this to make your system saveable and register it with UnifiedSaveManager.
     /// </summary>
-    /// <example>
-    /// public class InventorySaveableSystem : MonoBehaviour, ISaveableSystem
-    /// {
-    ///     public string SystemKey => "inventory";
-    ///     public int SavePriority => 120;
-    ///     public Type SnapshotType => typeof(InventorySnapshot);
-    ///
-    ///     public object CaptureSnapshot() => inventoryManager.CaptureSnapshot();
-    ///     public bool RestoreSnapshot(object snapshot) => inventoryManager.RestoreSnapshot((InventorySnapshot)snapshot);
-    /// }
-    /// </example>
     public interface ISaveableSystem
     {
         /// <summary>

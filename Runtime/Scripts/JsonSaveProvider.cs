@@ -18,17 +18,6 @@ namespace HelloDev.Saving
     /// - Binary serialization for smaller files
     /// - Integration with third-party save systems (Easy Save 3, etc.)
     /// </summary>
-    /// <example>
-    /// // Basic usage
-    /// SaveService.SetProvider(new JsonSaveProvider());
-    ///
-    /// // Custom directory and extension
-    /// SaveService.SetProvider(new JsonSaveProvider(
-    ///     subdirectory: "MySaves",
-    ///     fileExtension: ".sav",
-    ///     prettyPrint: true
-    /// ));
-    /// </example>
     public class JsonSaveProvider : ISaveProvider
     {
         private readonly string _saveDirectory;

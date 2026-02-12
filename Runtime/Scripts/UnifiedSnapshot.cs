@@ -7,18 +7,6 @@ namespace HelloDev.Saving
     /// Container for all system snapshots. This is the root object saved to disk.
     /// Contains versioning info, metadata, and a list of system-specific snapshots.
     /// </summary>
-    /// <example>
-    /// JSON structure:
-    /// {
-    ///   "Version": 1,
-    ///   "Timestamp": "2026-01-18T14:30:00Z",
-    ///   "Systems": [
-    ///     { "Key": "quests", "TypeName": "...", "JsonData": "{...}" },
-    ///     { "Key": "tutorials", "TypeName": "...", "JsonData": "{...}" }
-    ///   ],
-    ///   "Metadata": { "SlotKey": "save-0", ... }
-    /// }
-    /// </example>
     [Serializable]
     public class UnifiedSnapshot
     {
