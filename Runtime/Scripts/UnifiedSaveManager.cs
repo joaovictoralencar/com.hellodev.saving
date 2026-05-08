@@ -184,17 +184,17 @@ namespace HelloDev.Saving
         {
             if (_isInitialized) return;
 
-            Logger.Log(LogSystems.Save, "UnifiedSaveManager starting initialization...");
+            Logger.Log("Save", "UnifiedSaveManager starting initialization...");
 
             if (settings == null)
             {
-                Logger.LogError(LogSystems.Save, "SaveSystemSettings_SO not assigned. Cannot initialize.");
+                Logger.LogError("Save", "SaveSystemSettings_SO not assigned. Cannot initialize.");
                 return;
             }
 
             // Configure global SaveService with our settings
             settings.ConfigureSaveService();
-            Logger.Log(LogSystems.Save, $"SaveService configured: {settings.SaveSubdirectory}/{settings.FileExtension}");
+            Logger.Log("Save", $"SaveService configured: {settings.SaveSubdirectory}/{settings.FileExtension}");
 
             // Self-register to context
             _context?.Register<UnifiedSaveManager>(this);
@@ -202,7 +202,7 @@ namespace HelloDev.Saving
             _isInitialized = true;
             _autoSaveTimer = autoSaveInterval;
 
-            Logger.Log(LogSystems.Save, "UnifiedSaveManager initialized.");
+            Logger.Log("Save", "UnifiedSaveManager initialized.");
 
             // Auto-load AFTER all bootstrap systems are ready (so all snapshot providers are registered)
             if (autoLoadOnStart && !string.IsNullOrEmpty(defaultSlotKey))
@@ -237,7 +237,7 @@ namespace HelloDev.Saving
             _context?.Unregister<UnifiedSaveManager>();
             _registeredSystems.Clear();
             _isInitialized = false;
-            Logger.Log(LogSystems.Save, "UnifiedSaveManager shutdown.");
+            Logger.Log("Save", "UnifiedSaveManager shutdown.");
         }
 
         #endregion
@@ -300,13 +300,13 @@ namespace HelloDev.Saving
         {
             if (system == null)
             {
-                Logger.LogWarning(LogSystems.Save, "Cannot register null system.");
+                Logger.LogWarning("Save", "Cannot register null system.");
                 return;
             }
 
             if (_registeredSystems.Any(s => s.SystemKey == system.SystemKey))
             {
-                Logger.LogWarning(LogSystems.Save, $"System '{system.SystemKey}' already registered. Skipping.");
+                Logger.LogWarning("Save", $"System '{system.SystemKey}' already registered. Skipping.");
                 return;
             }
 
@@ -314,7 +314,7 @@ namespace HelloDev.Saving
             _registeredSystems.Sort((a, b) => a.SavePriority.CompareTo(b.SavePriority));
 
             OnSystemRegistered?.Invoke(system);
-            Logger.Log(LogSystems.Save, $"Registered saveable system: {system.SystemKey} (priority: {system.SavePriority})");
+            Logger.Log("Save", $"Registered saveable system: {system.SystemKey} (priority: {system.SavePriority})");
         }
 
         /// <summary>
@@ -329,7 +329,7 @@ namespace HelloDev.Saving
             if (removed)
             {
                 OnSystemUnregistered?.Invoke(system);
-                Logger.Log(LogSystems.Save, $"Unregistered saveable system: {system.SystemKey}");
+                Logger.Log("Save", $"Unregistered saveable system: {system.SystemKey}");
             }
         }
 
@@ -376,16 +376,16 @@ namespace HelloDev.Saving
                         };
                         snapshot.Systems.Add(entry);
 
-                        Logger.LogVerbose(LogSystems.Save, $"Captured snapshot for system: {system.SystemKey}");
+                        Logger.LogVerbose("Save", $"Captured snapshot for system: {system.SystemKey}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(LogSystems.Save, $"Failed to capture {system.SystemKey}: {ex.Message}");
+                    Logger.LogError("Save", $"Failed to capture {system.SystemKey}: {ex.Message}");
                 }
             }
 
-            Logger.Log(LogSystems.Save, $"Captured unified snapshot with {snapshot.Systems.Count} systems");
+            Logger.Log("Save", $"Captured unified snapshot with {snapshot.Systems.Count} systems");
             return snapshot;
         }
 
@@ -398,7 +398,7 @@ namespace HelloDev.Saving
         {
             if (snapshot == null)
             {
-                Logger.LogWarning(LogSystems.Save, "Cannot restore null snapshot.");
+                Logger.LogWarning("Save", "Cannot restore null snapshot.");
                 return false;
             }
 
@@ -416,7 +416,7 @@ namespace HelloDev.Saving
                 var entry = snapshot.FindSystem(system.SystemKey);
                 if (entry == null)
                 {
-                    Logger.LogVerbose(LogSystems.Save, $"No data for system '{system.SystemKey}' in snapshot.");
+                    Logger.LogVerbose("Save", $"No data for system '{system.SystemKey}' in snapshot.");
                     system.OnAfterLoad(false);
                     continue;
                 }
@@ -426,7 +426,7 @@ namespace HelloDev.Saving
                     var type = Type.GetType(entry.TypeName);
                     if (type == null)
                     {
-                        Logger.LogError(LogSystems.Save, $"Cannot find type: {entry.TypeName}");
+                        Logger.LogError("Save", $"Cannot find type: {entry.TypeName}");
                         system.OnAfterLoad(false);
                         allSuccess = false;
                         continue;
@@ -439,23 +439,23 @@ namespace HelloDev.Saving
                     if (success)
                     {
                         restoredCount++;
-                        Logger.LogVerbose(LogSystems.Save, $"Restored snapshot for system: {system.SystemKey}");
+                        Logger.LogVerbose("Save", $"Restored snapshot for system: {system.SystemKey}");
                     }
                     else
                     {
                         allSuccess = false;
-                        Logger.LogWarning(LogSystems.Save, $"System '{system.SystemKey}' reported restore failure.");
+                        Logger.LogWarning("Save", $"System '{system.SystemKey}' reported restore failure.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(LogSystems.Save, $"Failed to restore {system.SystemKey}: {ex.Message}");
+                    Logger.LogError("Save", $"Failed to restore {system.SystemKey}: {ex.Message}");
                     system.OnAfterLoad(false);
                     allSuccess = false;
                 }
             }
 
-            Logger.Log(LogSystems.Save, $"Restored {restoredCount}/{_registeredSystems.Count} systems from unified snapshot");
+            Logger.Log("Save", $"Restored {restoredCount}/{_registeredSystems.Count} systems from unified snapshot");
             return allSuccess;
         }
 
@@ -472,11 +472,11 @@ namespace HelloDev.Saving
         {
             if (!SaveService.IsConfigured)
             {
-                Logger.LogError(LogSystems.Save, "No provider configured. Cannot save.");
+                Logger.LogError("Save", "No provider configured. Cannot save.");
                 return false;
             }
 
-            Logger.Log(LogSystems.Save, $"Saving to slot: {slotKey}");
+            Logger.Log("Save", $"Saving to slot: {slotKey}");
             OnBeforeSave?.Invoke(slotKey);
 
             var snapshot = CaptureUnifiedSnapshot();
@@ -492,7 +492,7 @@ namespace HelloDev.Saving
             }
 
             OnAfterSave?.Invoke(slotKey, success);
-            Logger.Log(LogSystems.Save, $"Save to '{slotKey}': {(success ? "success" : "failed")}");
+            Logger.Log("Save", $"Save to '{slotKey}': {(success ? "success" : "failed")}");
 
             return success;
         }
@@ -506,17 +506,17 @@ namespace HelloDev.Saving
         {
             if (!SaveService.IsConfigured)
             {
-                Logger.LogError(LogSystems.Save, "No provider configured. Cannot load.");
+                Logger.LogError("Save", "No provider configured. Cannot load.");
                 return false;
             }
 
-            Logger.Log(LogSystems.Save, $"Loading from slot: {slotKey}");
+            Logger.Log("Save", $"Loading from slot: {slotKey}");
             OnBeforeLoad?.Invoke(slotKey);
 
             var snapshot = await SaveService.Provider.LoadAsync<UnifiedSnapshot>(slotKey);
             if (snapshot == null)
             {
-                Logger.LogWarning(LogSystems.Save, $"No save found at '{slotKey}'.");
+                Logger.LogWarning("Save", $"No save found at '{slotKey}'.");
                 OnAfterLoad?.Invoke(slotKey, false);
                 return false;
             }
@@ -524,7 +524,7 @@ namespace HelloDev.Saving
             bool success = RestoreUnifiedSnapshot(snapshot);
 
             OnAfterLoad?.Invoke(slotKey, success);
-            Logger.Log(LogSystems.Save, $"Load from '{slotKey}': {(success ? "success" : "partial/failed")}");
+            Logger.Log("Save", $"Load from '{slotKey}': {(success ? "success" : "partial/failed")}");
 
             return success;
         }
@@ -550,7 +550,7 @@ namespace HelloDev.Saving
             if (!SaveService.IsConfigured) return false;
 
             bool success = await SaveService.Provider.DeleteAsync(slotKey);
-            Logger.Log(LogSystems.Save, $"Delete '{slotKey}': {(success ? "success" : "failed")}");
+            Logger.Log("Save", $"Delete '{slotKey}': {(success ? "success" : "failed")}");
 
             return success;
         }
@@ -576,22 +576,22 @@ namespace HelloDev.Saving
         {
             if (string.IsNullOrEmpty(defaultSlotKey))
             {
-                Logger.LogWarning(LogSystems.Save, "Auto-load enabled but no slot specified.");
+                Logger.LogWarning("Save", "Auto-load enabled but no slot specified.");
                 return;
             }
 
             bool exists = await SaveExistsAsync(defaultSlotKey);
             if (!exists)
             {
-                Logger.Log(LogSystems.Save, $"No save file found for slot '{defaultSlotKey}', skipping auto-load.");
+                Logger.Log("Save", $"No save file found for slot '{defaultSlotKey}', skipping auto-load.");
                 return;
             }
 
-            Logger.Log(LogSystems.Save, $"Auto-loading from slot '{defaultSlotKey}'...");
+            Logger.Log("Save", $"Auto-loading from slot '{defaultSlotKey}'...");
             bool success = await LoadAsync(defaultSlotKey);
             if (!success)
             {
-                Logger.LogWarning(LogSystems.Save, $"Auto-load from '{defaultSlotKey}' failed.");
+                Logger.LogWarning("Save", $"Auto-load from '{defaultSlotKey}' failed.");
             }
         }
 
@@ -599,20 +599,20 @@ namespace HelloDev.Saving
         {
             if (string.IsNullOrEmpty(defaultSlotKey))
             {
-                Logger.LogWarning(LogSystems.Save, "Auto-save triggered but no slot specified.");
+                Logger.LogWarning("Save", "Auto-save triggered but no slot specified.");
                 return;
             }
 
-            Logger.Log(LogSystems.Save, $"Auto-saving to slot '{defaultSlotKey}' (trigger: {trigger})...");
+            Logger.Log("Save", $"Auto-saving to slot '{defaultSlotKey}' (trigger: {trigger})...");
             bool success = await SaveAsync(defaultSlotKey);
 
             if (success)
             {
-                Logger.Log(LogSystems.Save, $"Auto-save to '{defaultSlotKey}' successful.");
+                Logger.Log("Save", $"Auto-save to '{defaultSlotKey}' successful.");
             }
             else
             {
-                Logger.LogWarning(LogSystems.Save, $"Auto-save to '{defaultSlotKey}' failed.");
+                Logger.LogWarning("Save", $"Auto-save to '{defaultSlotKey}' failed.");
             }
         }
 
@@ -620,11 +620,11 @@ namespace HelloDev.Saving
         {
             if (string.IsNullOrEmpty(defaultSlotKey))
             {
-                Logger.LogWarning(LogSystems.Save, "Auto-save triggered but no slot specified.");
+                Logger.LogWarning("Save", "Auto-save triggered but no slot specified.");
                 return;
             }
 
-            Logger.Log(LogSystems.Save, $"Auto-saving to slot '{defaultSlotKey}' (trigger: {trigger})...");
+            Logger.Log("Save", $"Auto-saving to slot '{defaultSlotKey}' (trigger: {trigger})...");
 
             // Capture snapshot and save synchronously for quit scenarios
             var snapshot = CaptureUnifiedSnapshot();
@@ -638,11 +638,11 @@ namespace HelloDev.Saving
 
                 if (task.Result)
                 {
-                    Logger.Log(LogSystems.Save, $"Auto-save to '{defaultSlotKey}' successful.");
+                    Logger.Log("Save", $"Auto-save to '{defaultSlotKey}' successful.");
                 }
                 else
                 {
-                    Logger.LogWarning(LogSystems.Save, $"Auto-save to '{defaultSlotKey}' failed.");
+                    Logger.LogWarning("Save", $"Auto-save to '{defaultSlotKey}' failed.");
                 }
             }
         }
@@ -688,7 +688,7 @@ namespace HelloDev.Saving
         {
             if (!SaveService.IsConfigured)
             {
-                Logger.LogError(LogSystems.Save, "No provider configured");
+                Logger.LogError("Save", "No provider configured");
                 return;
             }
 
@@ -703,7 +703,7 @@ namespace HelloDev.Saving
         {
             if (!SaveService.IsConfigured)
             {
-                Logger.LogError(LogSystems.Save, "No provider configured");
+                Logger.LogError("Save", "No provider configured");
                 return;
             }
 
@@ -729,7 +729,7 @@ namespace HelloDev.Saving
         {
             if (settings == null)
             {
-                Logger.LogError(LogSystems.Save, "No settings configured");
+                Logger.LogError("Save", "No settings configured");
                 return;
             }
 
@@ -748,7 +748,7 @@ namespace HelloDev.Saving
         {
             if (!SaveService.IsConfigured)
             {
-                Logger.LogError(LogSystems.Save, "No provider configured");
+                Logger.LogError("Save", "No provider configured");
                 return;
             }
 

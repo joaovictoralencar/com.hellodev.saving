@@ -58,13 +58,13 @@ namespace HelloDev.Saving
 
         public Task<bool> SaveAsync<T>(string key, T data)
         {
-            Logger.LogWarning(LogSystems.Save, "No provider configured. Save operation ignored.");
+            Logger.LogWarning("Save", "No provider configured. Save operation ignored.");
             return Task.FromResult(false);
         }
 
         public Task<T> LoadAsync<T>(string key)
         {
-            Logger.LogWarning(LogSystems.Save, "No provider configured. Load operation returned default.");
+            Logger.LogWarning("Save", "No provider configured. Load operation returned default.");
             return Task.FromResult(default(T));
         }
 

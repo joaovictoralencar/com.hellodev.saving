@@ -148,7 +148,7 @@ namespace HelloDev.Saving
 
             manager.RegisterSystem(this);
             _registeredManager = manager;
-            Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Registered with UnifiedSaveManager");
+            Logger.LogVerbose("Save", $"[{SystemKey}] Registered with UnifiedSaveManager");
         }
 
         /// <summary>
@@ -161,7 +161,7 @@ namespace HelloDev.Saving
             {
                 _registeredManager.UnregisterSystem(this);
                 _registeredManager = null;
-                Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Unregistered from UnifiedSaveManager");
+                Logger.LogVerbose("Save", $"[{SystemKey}] Unregistered from UnifiedSaveManager");
             }
         }
 

@@ -62,7 +62,7 @@ namespace HelloDev.Saving
                 // Unregister from save manager
                 Unregister();
                 
-                Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Disposed");
+                Logger.LogVerbose("Save", $"[{SystemKey}] Disposed");
             }
         }
 
@@ -74,7 +74,7 @@ namespace HelloDev.Saving
         {
             if (!_disposed)
             {
-                Logger.LogWarning(LogSystems.Save, 
+                Logger.LogWarning("Save", 
                     $"[{SystemKey}] Finalizer called without Dispose(). Always call Dispose() explicitly.");
                 Dispose(false);
             }

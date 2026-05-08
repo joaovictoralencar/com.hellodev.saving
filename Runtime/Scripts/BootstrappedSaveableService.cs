@@ -73,7 +73,7 @@ namespace HelloDev.Saving
             if (_context.TryGet(out UnifiedSaveManager saveManager))
             {
                 Register(saveManager);
-                Logger.LogVerbose(LogSystems.Save, 
+                Logger.LogVerbose("Save", 
                     $"[{SystemKey}] Auto-registered with UnifiedSaveManager from context");
             }
             else
@@ -97,7 +97,7 @@ namespace HelloDev.Saving
                 return Task.CompletedTask;
             }
 
-            Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Initializing...");
+            Logger.LogVerbose("Save", $"[{SystemKey}] Initializing...");
             _isInitialized = true;
 
             return Task.CompletedTask;
@@ -128,7 +128,7 @@ namespace HelloDev.Saving
             }
 
             _isInitialized = false;
-            Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Shutdown complete");
+            Logger.LogVerbose("Save", $"[{SystemKey}] Shutdown complete");
         }
 
         #endregion

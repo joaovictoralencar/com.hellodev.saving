@@ -70,7 +70,7 @@ namespace HelloDev.Saving
                 return Restore(typed);
             }
 
-            Logger.LogWarning(LogSystems.Save, 
+            Logger.LogWarning("Save", 
                 $"[{SystemKey}] Invalid snapshot type: {snapshot?.GetType().Name ?? "null"}. Expected: {typeof(TSnapshot).Name}", 
                 this);
             return false;
@@ -156,11 +156,11 @@ namespace HelloDev.Saving
             if (_saveManager != null)
             {
                 _saveManager.RegisterSystem(this);
-                Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Auto-registered with UnifiedSaveManager", this);
+                Logger.LogVerbose("Save", $"[{SystemKey}] Auto-registered with UnifiedSaveManager", this);
             }
             else
             {
-                Logger.LogWarning(LogSystems.Save, 
+                Logger.LogWarning("Save", 
                     $"[{SystemKey}] No UnifiedSaveManager found in scene. This system will not be saved.", 
                     this);
             }
@@ -175,7 +175,7 @@ namespace HelloDev.Saving
             if (_saveManager != null)
             {
                 _saveManager.UnregisterSystem(this);
-                Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Auto-unregistered from UnifiedSaveManager", this);
+                Logger.LogVerbose("Save", $"[{SystemKey}] Auto-unregistered from UnifiedSaveManager", this);
                 _saveManager = null;
             }
         }
@@ -193,13 +193,13 @@ namespace HelloDev.Saving
         {
             if (manager == null)
             {
-                Logger.LogWarning(LogSystems.Save, $"[{SystemKey}] Cannot register: manager is null", this);
+                Logger.LogWarning("Save", $"[{SystemKey}] Cannot register: manager is null", this);
                 return;
             }
 
             if (_saveManager != null && _saveManager != manager)
             {
-                Logger.LogWarning(LogSystems.Save, 
+                Logger.LogWarning("Save", 
                     $"[{SystemKey}] Already registered with a different manager. Unregister first.", 
                     this);
                 return;
@@ -207,7 +207,7 @@ namespace HelloDev.Saving
 
             _saveManager = manager;
             _saveManager.RegisterSystem(this);
-            Logger.Log(LogSystems.Save, $"[{SystemKey}] Manually registered with UnifiedSaveManager", this);
+            Logger.Log("Save", $"[{SystemKey}] Manually registered with UnifiedSaveManager", this);
         }
 
         /// <summary>

@@ -54,12 +54,12 @@ namespace HelloDev.Saving
 
                 File.WriteAllText(filePath, json);
 
-                Logger.LogVerbose(LogSystems.Save, $"Saved: {key}");
+                Logger.LogVerbose("Save", $"Saved: {key}");
                 return Task.FromResult(true);
             }
             catch (Exception ex)
             {
-                Logger.LogError(LogSystems.Save, $"Save failed for '{key}': {ex.Message}");
+                Logger.LogError("Save", $"Save failed for '{key}': {ex.Message}");
                 return Task.FromResult(false);
             }
         }
@@ -73,19 +73,19 @@ namespace HelloDev.Saving
 
                 if (!File.Exists(filePath))
                 {
-                    Logger.LogWarning(LogSystems.Save, $"File not found: {key}");
+                    Logger.LogWarning("Save", $"File not found: {key}");
                     return Task.FromResult(default(T));
                 }
 
                 string json = File.ReadAllText(filePath);
                 T data = JsonUtility.FromJson<T>(json);
 
-                Logger.LogVerbose(LogSystems.Save, $"Loaded: {key}");
+                Logger.LogVerbose("Save", $"Loaded: {key}");
                 return Task.FromResult(data);
             }
             catch (Exception ex)
             {
-                Logger.LogError(LogSystems.Save, $"Load failed for '{key}': {ex.Message}");
+                Logger.LogError("Save", $"Load failed for '{key}': {ex.Message}");
                 return Task.FromResult(default(T));
             }
         }
@@ -107,14 +107,14 @@ namespace HelloDev.Saving
                 if (File.Exists(filePath))
                 {
                     File.Delete(filePath);
-                    Logger.LogVerbose(LogSystems.Save, $"Deleted: {key}");
+                    Logger.LogVerbose("Save", $"Deleted: {key}");
                 }
 
                 return Task.FromResult(true);
             }
             catch (Exception ex)
             {
-                Logger.LogError(LogSystems.Save, $"Delete failed for '{key}': {ex.Message}");
+                Logger.LogError("Save", $"Delete failed for '{key}': {ex.Message}");
                 return Task.FromResult(false);
             }
         }
@@ -139,7 +139,7 @@ namespace HelloDev.Saving
             }
             catch (Exception ex)
             {
-                Logger.LogError(LogSystems.Save, $"GetKeys failed: {ex.Message}");
+                Logger.LogError("Save", $"GetKeys failed: {ex.Message}");
                 return Task.FromResult(Array.Empty<string>());
             }
         }

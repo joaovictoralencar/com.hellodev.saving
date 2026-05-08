@@ -62,7 +62,7 @@ namespace HelloDev.Saving
         {
             if (context == null)
             {
-                Logger.LogWarning(LogSystems.Save, $"[{SystemKey}] Received null context", this);
+                Logger.LogWarning("Save", $"[{SystemKey}] Received null context", this);
                 return;
             }
 
@@ -72,13 +72,13 @@ namespace HelloDev.Saving
             if (_context.TryGet(out UnifiedSaveManager saveManager))
             {
                 ManualRegister(saveManager);
-                Logger.LogVerbose(LogSystems.Save, 
+                Logger.LogVerbose("Save", 
                     $"[{SystemKey}] Registered with UnifiedSaveManager from context", 
                     this);
             }
             else
             {
-                Logger.LogWarning(LogSystems.Save, 
+                Logger.LogWarning("Save", 
                     $"[{SystemKey}] No UnifiedSaveManager in context. Falling back to scene search.", 
                     this);
             }
@@ -94,11 +94,11 @@ namespace HelloDev.Saving
         {
             if (_isInitialized)
             {
-                Logger.LogWarning(LogSystems.Save, $"[{SystemKey}] Already initialized", this);
+                Logger.LogWarning("Save", $"[{SystemKey}] Already initialized", this);
                 return Task.CompletedTask;
             }
 
-            Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Initializing...", this);
+            Logger.LogVerbose("Save", $"[{SystemKey}] Initializing...", this);
             _isInitialized = true;
 
             return Task.CompletedTask;
@@ -132,7 +132,7 @@ namespace HelloDev.Saving
             }
 
             _isInitialized = false;
-            Logger.LogVerbose(LogSystems.Save, $"[{SystemKey}] Shutdown complete", this);
+            Logger.LogVerbose("Save", $"[{SystemKey}] Shutdown complete", this);
         }
 
         #endregion
