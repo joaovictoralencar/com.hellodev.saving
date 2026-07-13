@@ -1,7 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using HelloDev.Logging;
-using UnityEngine;
 using Logger = HelloDev.Logging.Logger;
 
 namespace HelloDev.Saving
