@@ -1,4 +1,5 @@
 using System;
+using Cysharp.Threading.Tasks;
 
 namespace HelloDev.Saving
 {
@@ -45,7 +46,7 @@ namespace HelloDev.Saving
         /// </summary>
         /// <param name="snapshot">The snapshot to restore from. Cast to your SnapshotType.</param>
         /// <returns>True if restoration succeeded, false otherwise.</returns>
-        bool RestoreSnapshot(object snapshot);
+        UniTask<bool> RestoreSnapshot(object snapshot);
 
         /// <summary>
         /// Called before a save operation starts.

@@ -1,4 +1,5 @@
 using System;
+using Cysharp.Threading.Tasks;
 using HelloDev.Logging;
 using UnityEngine;
 using Logger = HelloDev.Logging.Logger;
@@ -63,11 +64,11 @@ namespace HelloDev.Saving
         /// This is the type-erased version called by UnifiedSaveManager.
         /// Override the type-safe Restore() method instead.
         /// </summary>
-        bool ISaveableSystem.RestoreSnapshot(object snapshot)
+        async UniTask<bool> ISaveableSystem.RestoreSnapshot(object snapshot)
         {
             if (snapshot is TSnapshot typed)
             {
-                return Restore(typed);
+                return await Restore(typed);
             }
 
             Logger.LogWarning("Save", 
@@ -121,7 +122,7 @@ namespace HelloDev.Saving
         /// </summary>
         /// <param name="snapshot">The snapshot to restore from.</param>
         /// <returns>True if restoration succeeded, false otherwise.</returns>
-        protected abstract bool Restore(TSnapshot snapshot);
+        protected abstract UniTask<bool> Restore(TSnapshot snapshot);
 
         #endregion
 

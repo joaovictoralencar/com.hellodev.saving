@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using HelloDev.Bootstrap;
 using HelloDev.Logging;
 using HelloDev.Utils;
@@ -180,7 +181,7 @@ namespace HelloDev.Saving
         /// <summary>
         /// Initializes the save manager and configures the global SaveService.
         /// </summary>
-        public async Task InitializeAsync()
+        public async UniTask InitializeAsync()
         {
             if (_isInitialized) return;
 
@@ -394,7 +395,7 @@ namespace HelloDev.Saving
         /// </summary>
         /// <param name="snapshot">The snapshot to restore from.</param>
         /// <returns>True if all systems restored successfully.</returns>
-        public bool RestoreUnifiedSnapshot(UnifiedSnapshot snapshot)
+        public async UniTask<bool> RestoreUnifiedSnapshot(UnifiedSnapshot snapshot)
         {
             if (snapshot == null)
             {
@@ -433,7 +434,7 @@ namespace HelloDev.Saving
                     }
 
                     var systemSnapshot = JsonUtility.FromJson(entry.JsonData, type);
-                    bool success = system.RestoreSnapshot(systemSnapshot);
+                    bool success = await system.RestoreSnapshot(systemSnapshot);
                     system.OnAfterLoad(success);
 
                     if (success)
@@ -521,7 +522,7 @@ namespace HelloDev.Saving
                 return false;
             }
 
-            bool success = RestoreUnifiedSnapshot(snapshot);
+            bool success = await RestoreUnifiedSnapshot(snapshot);
 
             OnAfterLoad?.Invoke(slotKey, success);
             Logger.Log("Save", $"Load from '{slotKey}': {(success ? "success" : "partial/failed")}");

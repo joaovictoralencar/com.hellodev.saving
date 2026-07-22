@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using HelloDev.Bootstrap;
 using HelloDev.Logging;
 using HelloDev.Utils;
@@ -90,18 +91,16 @@ namespace HelloDev.Saving
         /// Override to add custom initialization logic, but always call base.InitializeAsync().
         /// </summary>
         /// <returns>A task representing the initialization operation.</returns>
-        public virtual Task InitializeAsync()
+        public async virtual UniTask InitializeAsync()
         {
             if (_isInitialized)
             {
                 Logger.LogWarning("Save", $"[{SystemKey}] Already initialized", this);
-                return Task.CompletedTask;
+                return;
             }
 
             Logger.LogVerbose("Save", $"[{SystemKey}] Initializing...", this);
             _isInitialized = true;
-
-            return Task.CompletedTask;
         }
 
         /// <summary>

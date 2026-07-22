@@ -3,7 +3,8 @@
     "rootNamespace": "HelloDev.Saving",
     "references": [
         "HelloDev.Utils",
-        "HelloDev.Bootstrap"
+        "HelloDev.Bootstrap",
+        "UniTask"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

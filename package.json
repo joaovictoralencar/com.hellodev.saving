@@ -1,12 +1,12 @@
 {
   "name": "com.hellodev.saving",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "displayName": "HelloDev Saving",
   "description": "Unified save system for Unity games. Provides ISaveableSystem interface for modular save/load functionality, JSON-based persistence, and centralized save management with slot support.",
   "unity": "6000.0",
   "unityRelease": "0f1",
   "dependencies": {
-    "com.hellodev.utils": "https://github.com/joaovictoralencar/hellodev-utils.git#v1.0.7"
+    "com.hellodev.utils": "1.1.1"
   },
   "keywords": [
     "save",
@@ -20,6 +20,5 @@
     "email": "hello@hellodev.com",
     "url": ""
   },
-  "license": "MIT",
-  "type": "library"
+  "license": "MIT"
 }
