@@ -1,6 +1,6 @@
 {
   "name": "com.hellodev.saving",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "displayName": "HelloDev Saving",
   "description": "Unified save system for Unity games. Provides ISaveableSystem interface for modular save/load functionality, JSON-based persistence, and centralized save management with slot support.",
   "unity": "6000.0",
@@ -22,5 +22,12 @@
     "email": "hello.dev.tecnologia@gmail.com",
     "url": ""
   },
-  "license": "MIT"
+  "license": "MIT",
+  "samples": [
+    {
+      "displayName": "Minimal Save Example",
+      "description": "Simple setup demonstrating the package.",
+      "path": "Samples~/MinimalSaveExample"
+    }
+  ]
 }
