@@ -13,6 +13,7 @@ namespace HelloDev.Saving.Core
     /// Handles registration and restoration of saveables while
     /// remaining independent from the underlying save provider.
     /// </summary>
+    [Serializable]
     public class SaveModule : ISaveModule
     {
         private readonly Dictionary<string, ISavable> _savables = new();

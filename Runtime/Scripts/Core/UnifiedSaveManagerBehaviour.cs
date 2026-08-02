@@ -6,6 +6,9 @@ using Sirenix.OdinInspector;
 using UnityEngine;
 using UnityEngine.Events;
 using Logger = HelloDev.Logging.Logger;
+using System.IO;
+using System.Linq;
+using System.Diagnostics;
 
 namespace HelloDev.Saving.Core
 {
@@ -31,22 +34,53 @@ namespace HelloDev.Saving.Core
     {
         #region Serialized Fields
 
-        [Header("Provider Configuration")] [SerializeField] [Tooltip("Subdirectory within Application.persistentDataPath.")]
+#if ODIN_INSPECTOR
+        [TabGroup("Main", "Settings")]
+        [BoxGroup("Main/Settings/Provider Configuration")]
+#else
+        [Header("Provider Configuration")]
+#endif
+        [SerializeField]
+        [Tooltip("Subdirectory within Application.persistentDataPath.")]
         private string saveSubdirectory = "Saves";
 
-        [SerializeField] [Tooltip("File extension for save files.")]
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Settings/Provider Configuration")]
+#endif
+        [SerializeField]
+        [Tooltip("File extension for save files.")]
         private string fileExtension = ".json";
 
-        [SerializeField] [Tooltip("If true, saved JSON is formatted for readability (recommended while testing).")]
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Settings/Provider Configuration")]
+#endif
+        [SerializeField]
+        [Tooltip("If true, saved JSON is formatted for readability (recommended while testing).")]
         private bool prettyPrint = true;
 
-        [Header("Lifecycle")] [SerializeField] [Tooltip("If true, this manager persists across scene loads.")]
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Settings/Lifecycle")]
+#else
+        [Header("Lifecycle")]
+#endif
+        [SerializeField]
+        [Tooltip("If true, this manager persists across scene loads.")]
         private bool persistent = true;
 
-        [Header("Test Slot")] [SerializeField] [Tooltip("Slot key used by SaveTestSlot/LoadTestSlot and auto-load.")]
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Settings/Test Slot")]
+#else
+        [Header("Test Slot")]
+#endif
+        [SerializeField]
+        [Tooltip("Slot key used by SaveTestSlot/LoadTestSlot and auto-load.")]
         private string testSlotKey = "test_save";
 
-        [SerializeField] [Tooltip("If true, automatically loads the test slot on startup.")]
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Settings/Test Slot")]
+#endif
+        [SerializeField]
+        [Tooltip("If true, automatically loads the test slot on startup.")]
         private bool autoLoadOnStart;
 
         #endregion
@@ -78,12 +112,21 @@ namespace HelloDev.Saving.Core
         /// </summary>
         public IUnifiedSaveManager Manager { get; private set; }
 
+#if ODIN_INSPECTOR
+        [TabGroup("Main", "Diagnostics & Tools")]
+        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
+        [ShowInInspector, ReadOnly]
+#endif
         /// <summary>
         /// True once provider/serializer are configured and the manager
         /// is ready for modules/savables to register.
         /// </summary>
         public bool IsInitialized { get; private set; }
 
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
+        [ShowInInspector, ReadOnly]
+#endif
         /// <summary>
         /// The slot most recently saved to or loaded from via this behaviour.
         /// Updated automatically whenever <see cref="SaveAsync(string)"/> or
@@ -92,6 +135,41 @@ namespace HelloDev.Saving.Core
         /// overloads and for <c>autoSaveOnDestroy</c>.
         /// </summary>
         public string ActiveSlot { get; private set; }
+
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
+        [ShowInInspector, ReadOnly]
+#endif
+        public int RegisteredModuleCount => Manager?.Modules.Count ?? 0;
+
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
+        [ShowInInspector, ReadOnly]
+#endif
+        public int RegisteredSavableCount => Manager?.Modules?.Sum(m => m.Savables?.Count ?? 0) ?? 0;
+
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
+        [ShowInInspector, ReadOnly]
+#endif
+        /// <summary>
+        /// List of registered module IDs for quick inspection.
+        /// </summary>
+        public System.Collections.Generic.List<string> RegisteredModuleIds =>
+            Manager?.Modules?.Select(m => m.ModuleId).ToList() ?? new System.Collections.Generic.List<string>();
+
+        // The full module list is kept for code access but hidden from the inspector.
+#if ODIN_INSPECTOR
+        [HideInInspector]
+#endif
+        public System.Collections.Generic.IReadOnlyList<ISaveModule> RegisteredModules =>
+            Manager?.Modules?.ToList() ?? new System.Collections.Generic.List<ISaveModule>();
+
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
+        [ShowInInspector, ReadOnly]
+#endif
+        public string PersistentDataPath => Application.persistentDataPath;
 
         private bool _shutdownSaveTriggered;
 
@@ -233,7 +311,10 @@ namespace HelloDev.Saving.Core
         /// quick manual testing.
         /// </summary>
 #if ODIN_INSPECTOR
-        [Button]
+        [BoxGroup("Main/Diagnostics & Tools/Test Actions")]
+        [ButtonGroup("Main/Diagnostics & Tools/Test Actions/Buttons")]
+        [Button(ButtonSizes.Large)]
+        [GUIColor(0.6f, 0.9f, 0.6f)] // Soft Green
 #endif
         public void SaveTestSlot()
         {
@@ -245,11 +326,77 @@ namespace HelloDev.Saving.Core
         /// quick manual testing.
         /// </summary>
 #if ODIN_INSPECTOR
-        [Button]
+        [ButtonGroup("Main/Diagnostics & Tools/Test Actions/Buttons")]
+        [Button(ButtonSizes.Large)]
+        [GUIColor(0.6f, 0.8f, 1f)] // Soft Blue
 #endif
         public void LoadTestSlot()
         {
             LoadAsync(testSlotKey).Forget();
+        }
+
+        #endregion
+
+        #region File Utilities
+
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/File Operations")]
+        [Button(ButtonSizes.Medium)]
+#endif
+        public void OpenSaveFolder()
+        {
+            string path = Path.Combine(Application.persistentDataPath, saveSubdirectory);
+            Directory.CreateDirectory(path); // ensure it exists
+
+#if UNITY_STANDALONE_WIN
+            Process.Start("explorer.exe", path.Replace("/", "\\"));
+#elif UNITY_STANDALONE_OSX
+            Process.Start("open", path);
+#elif UNITY_STANDALONE_LINUX
+            Process.Start("xdg-open", path);
+#else
+            Application.OpenURL("file://" + path);
+#endif
+        }
+
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/File Operations")]
+        [Button(ButtonSizes.Medium)]
+        [GUIColor(1f, 0.6f, 0.6f)] // Soft Red
+#endif
+        public async void DeleteTestSaveAsync()
+        {
+            if (!IsInitialized)
+            {
+                Logger.LogWarning("Save", "Cannot delete test save: manager not initialized.");
+                return;
+            }
+
+            bool success = await SaveProviderService.Provider.DeleteAsync(testSlotKey);
+            if (success)
+                Logger.Log("Save", $"Test save slot '{testSlotKey}' deleted successfully.");
+            else
+                Logger.LogWarning("Save", $"Failed to delete test save slot '{testSlotKey}'.");
+        }
+
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/File Operations")]
+        [Button(ButtonSizes.Medium)]
+        [GUIColor(1f, 0.6f, 0.6f)] // Soft Red
+#endif
+        public async void DeleteActiveSaveAsync()
+        {
+            if (string.IsNullOrEmpty(ActiveSlot))
+            {
+                Logger.LogWarning("Save", "Cannot delete active save: ActiveSlot is null or empty.");
+                return;
+            }
+
+            bool success = await SaveProviderService.Provider.DeleteAsync(ActiveSlot);
+            if (success)
+                Logger.Log("Save", $"Active save slot '{ActiveSlot}' deleted successfully.");
+            else
+                Logger.LogWarning("Save", $"Failed to delete active save slot '{ActiveSlot}'.");
         }
 
         #endregion
