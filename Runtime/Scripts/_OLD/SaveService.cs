@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using Logger = HelloDev.Logging.Logger;
 
 namespace HelloDev.Saving
@@ -54,31 +55,31 @@ namespace HelloDev.Saving
 
         private NullSaveProvider() { }
 
-        public Task<bool> SaveAsync<T>(string key, T data)
+        public UniTask<bool> SaveAsync<T>(string key, T data)
         {
             Logger.LogWarning("Save", "No provider configured. Save operation ignored.");
-            return Task.FromResult(false);
+            return UniTask.FromResult(false);
         }
 
-        public Task<T> LoadAsync<T>(string key)
+        public UniTask<T> LoadAsync<T>(string key)
         {
             Logger.LogWarning("Save", "No provider configured. Load operation returned default.");
-            return Task.FromResult(default(T));
+            return UniTask.FromResult(default(T));
         }
 
-        public Task<bool> ExistsAsync(string key)
+        public UniTask<bool> ExistsAsync(string key)
         {
-            return Task.FromResult(false);
+            return UniTask.FromResult(false);
         }
 
-        public Task<bool> DeleteAsync(string key)
+        public UniTask<bool> DeleteAsync(string key)
         {
-            return Task.FromResult(true);
+            return UniTask.FromResult(true);
         }
 
-        public Task<string[]> GetKeysAsync(string prefix = null)
+        public UniTask<string[]> GetKeysAsync(string prefix = null)
         {
-            return Task.FromResult(Array.Empty<string>());
+            return UniTask.FromResult(Array.Empty<string>());
         }
     }
 }

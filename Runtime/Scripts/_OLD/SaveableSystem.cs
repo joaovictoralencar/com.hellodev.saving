@@ -7,25 +7,23 @@ using Logger = HelloDev.Logging.Logger;
 namespace HelloDev.Saving
 {
     /// <summary>
-    /// Generic base class for non-MonoBehaviour saveable systems.
-    /// Use this for services, managers, or any pure C# class that needs to be saved.
-    /// 
-    /// Unlike SaveableSystem (MonoBehaviour), this class requires manual registration/unregistration
-    /// with UnifiedSaveManager since it doesn't have Unity lifecycle events.
+    /// Generic base class for MonoBehaviour-based savable systems.
+    /// Handles auto-registration with UnifiedSaveManager and reduces boilerplate code.
     /// 
     /// This class automatically:
     /// - Implements all ISaveableSystem interface methods with sensible defaults
     /// - Provides type-safe Capture/Restore methods (no casting needed)
-    /// - Tracks registration state
+    /// - Registers with UnifiedSaveManager on Awake
+    /// - Unregisters on OnDestroy
     /// - Handles all the boilerplate so you only write what's unique to your system
     /// </summary>
     /// <typeparam name="TSnapshot">The snapshot type this system produces. Must be a [Serializable] class.</typeparam>
-    public abstract class SaveableService<TSnapshot> : ISaveableSystem
+    public abstract class SaveableSystem<TSnapshot> : MonoBehaviour, ISaveableSystem
         where TSnapshot : class
     {
         #region Private Fields
 
-        private UnifiedSaveManager _registeredManager;
+        private UnifiedSaveManager _saveManager;
 
         #endregion
 
@@ -33,7 +31,7 @@ namespace HelloDev.Saving
 
         /// <summary>
         /// Unique key identifying this system in the save file.
-        /// Convention: lowercase, no spaces (e.g., "economy", "settings", "analytics").
+        /// Convention: lowercase, no spaces (e.g., "player", "inventory", "quests").
         /// </summary>
         public abstract string SystemKey { get; }
 
@@ -73,7 +71,9 @@ namespace HelloDev.Saving
                 return await Restore(typed);
             }
 
-            Debug.LogWarning($"[{SystemKey}] Invalid snapshot type: {snapshot?.GetType().Name ?? "null"}. Expected: {typeof(TSnapshot).Name}");
+            Logger.LogWarning("Save", 
+                $"[{SystemKey}] Invalid snapshot type: {snapshot?.GetType().Name ?? "null"}. Expected: {typeof(TSnapshot).Name}", 
+                this);
             return false;
         }
 
@@ -126,50 +126,103 @@ namespace HelloDev.Saving
 
         #endregion
 
-        #region Registration
+        #region Auto-Registration
 
         /// <summary>
-        /// Registers this service with a UnifiedSaveManager.
-        /// Must be called after instantiating your service for it to be saved/loaded.
+        /// Automatically registers this system with UnifiedSaveManager on Awake.
+        /// Override this method if you need custom Awake logic, but make sure to call base.Awake().
+        /// </summary>
+        protected virtual void Awake()
+        {
+            AutoRegister();
+        }
+
+        /// <summary>
+        /// Automatically unregisters this system from UnifiedSaveManager on destroy.
+        /// Override this method if you need custom cleanup logic, but make sure to call base.OnDestroy().
+        /// </summary>
+        protected virtual void OnDestroy()
+        {
+            AutoUnregister();
+        }
+
+        /// <summary>
+        /// Attempts to find and register with a UnifiedSaveManager in the scene.
+        /// Called automatically during Awake.
+        /// </summary>
+        private void AutoRegister()
+        {
+            _saveManager = FindObjectOfType<UnifiedSaveManager>();
+            
+            if (_saveManager != null)
+            {
+                _saveManager.RegisterSystem(this);
+                Logger.LogVerbose("Save", $"[{SystemKey}] Auto-registered with UnifiedSaveManager", this);
+            }
+            else
+            {
+                Logger.LogWarning("Save", 
+                    $"[{SystemKey}] No UnifiedSaveManager found in scene. This system will not be saved.", 
+                    this);
+            }
+        }
+
+        /// <summary>
+        /// Unregisters this system from the UnifiedSaveManager.
+        /// Called automatically during OnDestroy.
+        /// </summary>
+        private void AutoUnregister()
+        {
+            if (_saveManager != null)
+            {
+                _saveManager.UnregisterSystem(this);
+                Logger.LogVerbose("Save", $"[{SystemKey}] Auto-unregistered from UnifiedSaveManager", this);
+                _saveManager = null;
+            }
+        }
+
+        #endregion
+
+        #region Manual Registration Helpers
+
+        /// <summary>
+        /// Manually registers this system with a specific UnifiedSaveManager.
+        /// Useful if you need to register before Awake or with a specific manager instance.
         /// </summary>
         /// <param name="manager">The save manager to register with.</param>
-        public void Register(UnifiedSaveManager manager)
+        public void ManualRegister(UnifiedSaveManager manager)
         {
             if (manager == null)
             {
-                Debug.LogWarning($"[{SystemKey}] Cannot register: manager is null");
+                Logger.LogWarning("Save", $"[{SystemKey}] Cannot register: manager is null", this);
                 return;
             }
 
-            if (_registeredManager != null)
+            if (_saveManager != null && _saveManager != manager)
             {
-                Debug.LogWarning($"[{SystemKey}] Already registered with a save manager. Unregister first or call Register again to switch.");
+                Logger.LogWarning("Save", 
+                    $"[{SystemKey}] Already registered with a different manager. Unregister first.", 
+                    this);
                 return;
             }
 
-            manager.RegisterSystem(this);
-            _registeredManager = manager;
-            Logger.LogVerbose("Save", $"[{SystemKey}] Registered with UnifiedSaveManager");
+            _saveManager = manager;
+            _saveManager.RegisterSystem(this);
+            Logger.Log("Save", $"[{SystemKey}] Manually registered with UnifiedSaveManager", this);
         }
 
         /// <summary>
-        /// Unregisters this service from its UnifiedSaveManager.
-        /// Call this when disposing/shutting down your service to prevent memory leaks.
+        /// Manually unregisters this system from its current UnifiedSaveManager.
         /// </summary>
-        public void Unregister()
+        public void ManualUnregister()
         {
-            if (_registeredManager != null)
-            {
-                _registeredManager.UnregisterSystem(this);
-                _registeredManager = null;
-                Logger.LogVerbose("Save", $"[{SystemKey}] Unregistered from UnifiedSaveManager");
-            }
+            AutoUnregister();
         }
 
         /// <summary>
-        /// Returns true if this service is currently registered with a save manager.
+        /// Returns true if this system is currently registered with a save manager.
         /// </summary>
-        public bool IsRegistered => _registeredManager != null;
+        public bool IsRegistered => _saveManager != null;
 
         #endregion
     }

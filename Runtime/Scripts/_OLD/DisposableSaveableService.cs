@@ -7,7 +7,7 @@ using Logger = HelloDev.Logging.Logger;
 namespace HelloDev.Saving
 {
     /// <summary>
-    /// Generic base class for non-MonoBehaviour saveable systems that implement IDisposable.
+    /// Generic base class for non-MonoBehaviour savable systems that implement IDisposable.
     /// Automatically unregisters from the save manager when disposed.
     /// 
     /// This class is useful for:

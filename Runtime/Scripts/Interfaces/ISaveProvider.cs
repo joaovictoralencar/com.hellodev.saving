@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 
 namespace HelloDev.Saving
 {
@@ -18,7 +18,7 @@ namespace HelloDev.Saving
         /// <param name="key">Unique identifier for this save data.</param>
         /// <param name="data">The data to save.</param>
         /// <returns>True if save was successful.</returns>
-        Task<bool> SaveAsync<T>(string key, T data);
+        UniTask<bool> SaveAsync<T>(string key, T data);
 
         /// <summary>
         /// Loads data asynchronously.
@@ -26,27 +26,27 @@ namespace HelloDev.Saving
         /// <typeparam name="T">The type of data to load.</typeparam>
         /// <param name="key">Unique identifier for the save data.</param>
         /// <returns>The loaded data, or default(T) if not found or failed.</returns>
-        Task<T> LoadAsync<T>(string key);
+        UniTask<T> LoadAsync<T>(string key);
 
         /// <summary>
         /// Checks if save data exists for the given key.
         /// </summary>
         /// <param name="key">Unique identifier to check.</param>
         /// <returns>True if data exists for this key.</returns>
-        Task<bool> ExistsAsync(string key);
+        UniTask<bool> ExistsAsync(string key);
 
         /// <summary>
         /// Deletes save data for the given key.
         /// </summary>
         /// <param name="key">Unique identifier to delete.</param>
         /// <returns>True if deletion was successful or key didn't exist.</returns>
-        Task<bool> DeleteAsync(string key);
+        UniTask<bool> DeleteAsync(string key);
 
         /// <summary>
         /// Gets all saved keys, optionally filtered by prefix.
         /// </summary>
         /// <param name="prefix">Optional prefix to filter keys (e.g., "quest.", "inventory.").</param>
         /// <returns>Array of matching keys.</returns>
-        Task<string[]> GetKeysAsync(string prefix = null);
+        UniTask<string[]> GetKeysAsync(string prefix = null);
     }
 }

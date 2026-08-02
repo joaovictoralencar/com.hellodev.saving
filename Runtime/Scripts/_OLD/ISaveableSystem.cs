@@ -5,7 +5,7 @@ namespace HelloDev.Saving
 {
     /// <summary>
     /// Interface for systems that can be saved/loaded by the unified save system.
-    /// Implement this to make your system saveable and register it with UnifiedSaveManager.
+    /// Implement this to make your system savable and register it with UnifiedSaveManager.
     /// </summary>
     public interface ISaveableSystem
     {
@@ -36,7 +36,7 @@ namespace HelloDev.Saving
 
         /// <summary>
         /// Captures the current state as a serializable snapshot.
-        /// The returned object must be of SnapshotType and serializable via JsonUtility.
+        /// The returned object must be of StateType and serializable via JsonUtility.
         /// </summary>
         /// <returns>A snapshot object, or null if nothing to save.</returns>
         object CaptureSnapshot();
@@ -44,7 +44,7 @@ namespace HelloDev.Saving
         /// <summary>
         /// Restores state from a previously captured snapshot.
         /// </summary>
-        /// <param name="snapshot">The snapshot to restore from. Cast to your SnapshotType.</param>
+        /// <param name="snapshot">The snapshot to restore from. Cast to your StateType.</param>
         /// <returns>True if restoration succeeded, false otherwise.</returns>
         UniTask<bool> RestoreSnapshot(object snapshot);
 

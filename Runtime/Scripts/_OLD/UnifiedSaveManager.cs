@@ -137,7 +137,7 @@ namespace HelloDev.Saving
         public SaveSystemSettings_SO Settings => settings;
 
         /// <summary>
-        /// Gets all registered saveable systems.
+        /// Gets all registered savable systems.
         /// </summary>
         public IReadOnlyList<ISaveableSystem> RegisteredSystems => _registeredSystems;
 
@@ -294,7 +294,7 @@ namespace HelloDev.Saving
         #region System Registration
 
         /// <summary>
-        /// Registers a saveable system. Systems are saved/loaded in priority order.
+        /// Registers a savable system. Systems are saved/loaded in priority order.
         /// </summary>
         /// <param name="system">The system to register.</param>
         public void RegisterSystem(ISaveableSystem system)
@@ -315,11 +315,11 @@ namespace HelloDev.Saving
             _registeredSystems.Sort((a, b) => a.SavePriority.CompareTo(b.SavePriority));
 
             OnSystemRegistered?.Invoke(system);
-            Logger.Log("Save", $"Registered saveable system: {system.SystemKey} (priority: {system.SavePriority})");
+            Logger.Log("Save", $"Registered savable system: {system.SystemKey} (priority: {system.SavePriority})");
         }
 
         /// <summary>
-        /// Unregisters a saveable system.
+        /// Unregisters a savable system.
         /// </summary>
         /// <param name="system">The system to unregister.</param>
         public void UnregisterSystem(ISaveableSystem system)
@@ -330,7 +330,7 @@ namespace HelloDev.Saving
             if (removed)
             {
                 OnSystemUnregistered?.Invoke(system);
-                Logger.Log("Save", $"Unregistered saveable system: {system.SystemKey}");
+                Logger.Log("Save", $"Unregistered savable system: {system.SystemKey}");
             }
         }
 
@@ -617,7 +617,7 @@ namespace HelloDev.Saving
             }
         }
 
-        private void AutoSaveSync(string trigger)
+        private async UniTask AutoSaveSync(string trigger)
         {
             if (string.IsNullOrEmpty(defaultSlotKey))
             {
@@ -634,10 +634,9 @@ namespace HelloDev.Saving
                 snapshot.Metadata.SlotKey = defaultSlotKey;
                 snapshot.Metadata.Timestamp = snapshot.Timestamp;
 
-                var task = SaveService.Provider.SaveAsync(defaultSlotKey, snapshot);
-                task.Wait();
+                bool task = await SaveService.Provider.SaveAsync(defaultSlotKey, snapshot);
 
-                if (task.Result)
+                if (task)
                 {
                     Logger.Log("Save", $"Auto-save to '{defaultSlotKey}' successful.");
                 }

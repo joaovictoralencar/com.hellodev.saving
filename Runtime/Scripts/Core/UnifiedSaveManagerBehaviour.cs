@@ -1,0 +1,257 @@
+using Cysharp.Threading.Tasks;
+using HelloDev.Saving.Interfaces;
+#if ODIN_INSPECTOR
+using Sirenix.OdinInspector;
+#endif
+using UnityEngine;
+using UnityEngine.Events;
+using Logger = HelloDev.Logging.Logger;
+
+namespace HelloDev.Saving.Core
+{
+    /// <summary>
+    /// Self-initializing MonoBehaviour wrapper around <see cref="UnifiedSaveManager"/>.
+    /// Configures the global <see cref="SaveSerializerService"/> and
+    /// <see cref="SaveProviderService"/> and exposes Save/Load for a
+    /// configurable test slot.
+    ///
+    /// This is a standalone setup for testing the save framework and does not
+    /// integrate with any bootstrap/DI system. If the project adopts one
+    /// later, replace self-initialization with that system's lifecycle hooks.
+    ///
+    /// [DefaultExecutionOrder(-1000)] ensures this component's Awake/OnEnable
+    /// run before other scene scripts' (e.g. ExampleSavableComponent),
+    /// since Instance/Manager must exist before scene objects try to
+    /// self-register in their own Awake. Registration order relative to
+    /// loading no longer matters functionally (see SaveModule.LastLoadedState),
+    /// but Instance/Manager still need to exist before anything reads them.
+    /// </summary>
+    [DefaultExecutionOrder(-1000)]
+    public class UnifiedSaveManagerBehaviour : MonoBehaviour
+    {
+        #region Serialized Fields
+
+        [Header("Provider Configuration")] [SerializeField] [Tooltip("Subdirectory within Application.persistentDataPath.")]
+        private string saveSubdirectory = "Saves";
+
+        [SerializeField] [Tooltip("File extension for save files.")]
+        private string fileExtension = ".json";
+
+        [SerializeField] [Tooltip("If true, saved JSON is formatted for readability (recommended while testing).")]
+        private bool prettyPrint = true;
+
+        [Header("Lifecycle")] [SerializeField] [Tooltip("If true, this manager persists across scene loads.")]
+        private bool persistent = true;
+
+        [Header("Test Slot")] [SerializeField] [Tooltip("Slot key used by SaveTestSlot/LoadTestSlot and auto-load.")]
+        private string testSlotKey = "test_save";
+
+        [SerializeField] [Tooltip("If true, automatically loads the test slot on startup.")]
+        private bool autoLoadOnStart;
+
+        #endregion
+
+        #region Events
+
+        /// <summary>Fired before a save operation starts.</summary>
+        [HideInInspector] public UnityEvent<string> OnBeforeSave = new();
+
+        /// <summary>Fired after a save operation completes.</summary>
+        [HideInInspector] public UnityEvent<string, bool> OnAfterSave = new();
+
+        /// <summary>Fired before a load operation starts.</summary>
+        [HideInInspector] public UnityEvent<string> OnBeforeLoad = new();
+
+        /// <summary>Fired after a load operation completes.</summary>
+        [HideInInspector] public UnityEvent<string, bool> OnAfterLoad = new();
+
+        #endregion
+
+        /// <summary>
+        /// Active instance, available once <see cref="Awake"/> has run.
+        /// Only one should exist for the whole game (persistent).
+        /// </summary>
+        public static UnifiedSaveManagerBehaviour Instance { get; private set; }
+
+        /// <summary>
+        /// The underlying framework manager. Null until initialization completes.
+        /// </summary>
+        public IUnifiedSaveManager Manager { get; private set; }
+
+        /// <summary>
+        /// True once provider/serializer are configured and the manager
+        /// is ready for modules/savables to register.
+        /// </summary>
+        public bool IsInitialized { get; private set; }
+
+        /// <summary>
+        /// The slot most recently saved to or loaded from via this behaviour.
+        /// Updated automatically whenever <see cref="SaveAsync(string)"/> or
+        /// <see cref="LoadAsync(string)"/> is called, and used as the default
+        /// target for the parameterless <see cref="SaveAsync()"/>/<see cref="LoadAsync()"/>
+        /// overloads and for <c>autoSaveOnDestroy</c>.
+        /// </summary>
+        public string ActiveSlot { get; private set; }
+
+        private bool _shutdownSaveTriggered;
+
+        #region Unity Lifecycle
+
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Logger.LogWarning("Save", "Duplicate UnifiedSaveManagerBehaviour found; destroying this one.");
+                Destroy(gameObject);
+                return;
+            }
+
+            Instance = this;
+
+            if (persistent)
+            {
+                DontDestroyOnLoad(gameObject);
+            }
+        }
+
+        private async void OnEnable()
+        {
+            if (IsInitialized)
+                return;
+
+            await InitializeCoreAsync();
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
+        #endregion
+
+        #region Initialization
+
+        private async UniTask InitializeCoreAsync()
+        {
+            Logger.Log("Save", "UnifiedSaveManagerBehaviour initializing...");
+
+            SaveSerializerService.SetSerializer(new JsonSaveSerializer(prettyPrint));
+            SaveProviderService.SetProvider(new JsonSaveProvider(saveSubdirectory, fileExtension, prettyPrint));
+
+            Manager = new UnifiedSaveManager();
+
+            Manager.SaveStarted += slot => OnBeforeSave?.Invoke(slot);
+            Manager.SaveCompleted += (slot, success) => OnAfterSave?.Invoke(slot, success);
+            Manager.LoadStarted += slot => OnBeforeLoad?.Invoke(slot);
+            Manager.LoadCompleted += (slot, success) => OnAfterLoad?.Invoke(slot, success);
+
+            IsInitialized = true;
+            Logger.Log("Save", "UnifiedSaveManagerBehaviour initialized.");
+
+            if (autoLoadOnStart && !string.IsNullOrEmpty(testSlotKey))
+            {
+                bool success = await LoadAsync(testSlotKey);
+
+                if (!success)
+                {
+                    Logger.LogWarning("Save", $"Auto-load from '{testSlotKey}' failed or no save was found.");
+                }
+            }
+        }
+
+        #endregion
+
+        #region Save / Load
+
+        /// <summary>
+        /// Saves to the given slot. Updates <see cref="ActiveSlot"/> to <paramref name="slot"/>.
+        /// </summary>
+        public async UniTask<bool> SaveAsync(string slot)
+        {
+            if (!IsInitialized)
+            {
+                Logger.LogError("Save", "Cannot save before initialization completes.");
+                return false;
+            }
+
+            ActiveSlot = slot;
+
+            return await Manager.SaveAsync(slot);
+        }
+
+        /// <summary>
+        /// Saves to <see cref="ActiveSlot"/>.
+        /// </summary>
+        public UniTask<bool> SaveAsync()
+        {
+            if (string.IsNullOrEmpty(ActiveSlot))
+            {
+                Logger.LogError("Save", "Cannot save: no ActiveSlot is set.");
+                return UniTask.FromResult(false);
+            }
+
+            return SaveAsync(ActiveSlot);
+        }
+
+        /// <summary>
+        /// Loads from the given slot. Updates <see cref="ActiveSlot"/> to <paramref name="slot"/>.
+        /// Safe to call more than once (e.g. a newly loaded scene re-requesting
+        /// load so its own just-registered savables pick up matching data).
+        /// </summary>
+        public async UniTask<bool> LoadAsync(string slot)
+        {
+            if (!IsInitialized)
+            {
+                Logger.LogError("Save", "Cannot load before initialization completes.");
+                return false;
+            }
+
+            ActiveSlot = slot;
+
+            return await Manager.LoadAsync(slot);
+        }
+
+        /// <summary>
+        /// Loads from <see cref="ActiveSlot"/>.
+        /// </summary>
+        public UniTask<bool> LoadAsync()
+        {
+            if (string.IsNullOrEmpty(ActiveSlot))
+            {
+                Logger.LogError("Save", "Cannot load: no ActiveSlot is set.");
+                return UniTask.FromResult(false);
+            }
+
+            return LoadAsync(ActiveSlot);
+        }
+
+        /// <summary>
+        /// Saves to the configured test slot. Hook this up to a UI Button for
+        /// quick manual testing.
+        /// </summary>
+#if ODIN_INSPECTOR
+        [Button]
+#endif
+        public void SaveTestSlot()
+        {
+            SaveAsync(testSlotKey).Forget();
+        }
+
+        /// <summary>
+        /// Loads from the configured test slot. Hook this up to a UI Button for
+        /// quick manual testing.
+        /// </summary>
+#if ODIN_INSPECTOR
+        [Button]
+#endif
+        public void LoadTestSlot()
+        {
+            LoadAsync(testSlotKey).Forget();
+        }
+
+        #endregion
+    }
+}

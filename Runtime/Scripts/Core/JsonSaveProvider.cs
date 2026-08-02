@@ -1,8 +1,9 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
-using HelloDev.Logging;
+using Cysharp.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using UnityEngine;
 using Logger = HelloDev.Logging.Logger;
 
@@ -23,9 +24,10 @@ namespace HelloDev.Saving
         private readonly string _saveDirectory;
         private readonly string _fileExtension;
         private readonly bool _prettyPrint;
+        private readonly JsonSerializerSettings _jsonSettings;
 
         /// <summary>
-        /// Creates a new JSON file save provider.
+        /// Creates a new JSON file save provider using Newtonsoft.Json.
         /// </summary>
         /// <param name="subdirectory">Subdirectory within Application.persistentDataPath (default: "Saves").</param>
         /// <param name="fileExtension">File extension for save files (default: ".json").</param>
@@ -39,33 +41,51 @@ namespace HelloDev.Saving
             _fileExtension = fileExtension.StartsWith(".") ? fileExtension : "." + fileExtension;
             _prettyPrint = prettyPrint;
 
+            // Configure Newtonsoft settings – you can adjust these to your needs
+            _jsonSettings = new JsonSerializerSettings
+            {
+                Formatting = prettyPrint ? Formatting.Indented : Formatting.None,
+                NullValueHandling = NullValueHandling.Ignore,           // optional: omit nulls to reduce file size
+                MissingMemberHandling = MissingMemberHandling.Error,    // strict contract (throws on unknown fields)
+                Error = (obj, args) =>
+                {
+                    // Log deserialization errors but continue (handles per-field failures)
+                    Logger.LogError("Save", $"JSON error: {args.ErrorContext.Error.Message}");
+                    args.ErrorContext.Handled = true;
+                },
+                Converters =
+                {
+                    new StringEnumConverter() // saves enums as strings, not integers
+                }
+            };
+
             EnsureDirectoryExists();
         }
 
         /// <inheritdoc/>
-        public Task<bool> SaveAsync<T>(string key, T data)
+        public UniTask<bool> SaveAsync<T>(string key, T data)
         {
             try
             {
                 EnsureDirectoryExists();
 
                 string filePath = GetFilePath(key);
-                string json = JsonUtility.ToJson(data, _prettyPrint);
+                string json = JsonConvert.SerializeObject(data, _jsonSettings);
 
                 File.WriteAllText(filePath, json);
 
                 Logger.LogVerbose("Save", $"Saved: {key}");
-                return Task.FromResult(true);
+                return UniTask.FromResult(true);
             }
             catch (Exception ex)
             {
                 Logger.LogError("Save", $"Save failed for '{key}': {ex.Message}");
-                return Task.FromResult(false);
+                return UniTask.FromResult(false);
             }
         }
 
         /// <inheritdoc/>
-        public Task<T> LoadAsync<T>(string key)
+        public UniTask<T> LoadAsync<T>(string key)
         {
             try
             {
@@ -74,31 +94,31 @@ namespace HelloDev.Saving
                 if (!File.Exists(filePath))
                 {
                     Logger.LogWarning("Save", $"File not found: {key}");
-                    return Task.FromResult(default(T));
+                    return UniTask.FromResult(default(T));
                 }
 
                 string json = File.ReadAllText(filePath);
-                T data = JsonUtility.FromJson<T>(json);
+                T data = JsonConvert.DeserializeObject<T>(json, _jsonSettings);
 
                 Logger.LogVerbose("Save", $"Loaded: {key}");
-                return Task.FromResult(data);
+                return UniTask.FromResult(data);
             }
             catch (Exception ex)
             {
                 Logger.LogError("Save", $"Load failed for '{key}': {ex.Message}");
-                return Task.FromResult(default(T));
+                return UniTask.FromResult(default(T));
             }
         }
 
         /// <inheritdoc/>
-        public Task<bool> ExistsAsync(string key)
+        public UniTask<bool> ExistsAsync(string key)
         {
             string filePath = GetFilePath(key);
-            return Task.FromResult(File.Exists(filePath));
+            return UniTask.FromResult(File.Exists(filePath));
         }
 
         /// <inheritdoc/>
-        public Task<bool> DeleteAsync(string key)
+        public UniTask<bool> DeleteAsync(string key)
         {
             try
             {
@@ -110,23 +130,23 @@ namespace HelloDev.Saving
                     Logger.LogVerbose("Save", $"Deleted: {key}");
                 }
 
-                return Task.FromResult(true);
+                return UniTask.FromResult(true);
             }
             catch (Exception ex)
             {
                 Logger.LogError("Save", $"Delete failed for '{key}': {ex.Message}");
-                return Task.FromResult(false);
+                return UniTask.FromResult(false);
             }
         }
 
         /// <inheritdoc/>
-        public Task<string[]> GetKeysAsync(string prefix = null)
+        public UniTask<string[]> GetKeysAsync(string prefix = null)
         {
             try
             {
                 if (!Directory.Exists(_saveDirectory))
                 {
-                    return Task.FromResult(Array.Empty<string>());
+                    return UniTask.FromResult(Array.Empty<string>());
                 }
 
                 var files = Directory.GetFiles(_saveDirectory, $"*{_fileExtension}");
@@ -135,12 +155,12 @@ namespace HelloDev.Saving
                     .Where(k => string.IsNullOrEmpty(prefix) || k.StartsWith(prefix))
                     .ToArray();
 
-                return Task.FromResult(keys);
+                return UniTask.FromResult(keys);
             }
             catch (Exception ex)
             {
                 Logger.LogError("Save", $"GetKeys failed: {ex.Message}");
-                return Task.FromResult(Array.Empty<string>());
+                return UniTask.FromResult(Array.Empty<string>());
             }
         }
 
