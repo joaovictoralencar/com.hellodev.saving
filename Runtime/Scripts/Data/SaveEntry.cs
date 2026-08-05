@@ -1,5 +1,6 @@
 using System;
 using HelloDev.Saving.Interfaces;
+using Sirenix.OdinInspector;
 
 namespace HelloDev.Saving.Data
 {
@@ -21,6 +22,9 @@ namespace HelloDev.Saving.Data
         /// The payload format is determined by the active
         /// <see cref="ISaveSerializer"/>.
         /// </summary>
+#if ODIN_INSPECTOR
+        [DisplayAsString(false)] [HideLabel]
+#endif
         public string Payload;
     }
 }
