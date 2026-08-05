@@ -146,8 +146,7 @@ namespace HelloDev.Saving.Core
         /// <inheritdoc/>
         public async UniTask<bool> SaveAsync(string slot)
         {
-            if (string.IsNullOrWhiteSpace(slot))
-                throw new ArgumentException("Slot must not be null or empty.", nameof(slot));
+            ValidateSlot(slot);
 
             SaveStarted?.Invoke(slot);
 
@@ -155,43 +154,73 @@ namespace HelloDev.Saving.Core
 
             try
             {
-                string timestamp = DateTime.UtcNow.ToString("O");
+                SaveState state = await CreateSaveStateAsync(slot);
 
-                SaveMetadata metadata = _metadataProvider?.Invoke() ?? new SaveMetadata();
-                metadata.SlotId = slot;
-                metadata.Timestamp = timestamp;
+                success = await SaveToProviderAsync(slot, state);
 
-                SaveState state = new()
-                {
-                    Timestamp = timestamp,
-                    Metadata = metadata
-                };
-
-                foreach (ISaveModule module in _modules.Values)
-                {
-                    SaveModuleState moduleState = await module.SaveAsync();
-                    state.Modules.Add(moduleState);
-                }
-
-                success = await SaveProviderService.Provider.SaveAsync(slot, state);
-
-                Logger.Log("Save", $"Saved slot '{slot}': {state.Modules.Count} module(s), {state.Modules.Sum(m => m.Entries.Count)} entrie(s) total.");
+                if (success)
+                    LogSaveSuccess(slot, state);
             }
             catch (Exception ex)
             {
-                Logger.LogError("Save", $"Exception while saving slot '{slot}': {ex.Message}");
+                Logger.LogError("Save", $"Exception while saving slot '{slot}': {ex}");
                 success = false;
             }
 
             SaveCompleted?.Invoke(slot, success);
+
             return success;
+        }
+
+        private static void ValidateSlot(string slot)
+        {
+            if (string.IsNullOrWhiteSpace(slot))
+                throw new ArgumentException("Slot must not be null or empty.", nameof(slot));
+        }
+
+        private async UniTask<SaveState> CreateSaveStateAsync(string slot)
+        {
+            string timestamp = DateTime.UtcNow.ToString("O");
+
+            SaveState state = new()
+            {
+                Timestamp = timestamp,
+                Metadata = CreateMetadata(slot, timestamp)
+            };
+
+            foreach (ISaveModule module in _modules.Values)
+            {
+                SaveModuleState moduleState = await module.SaveAsync();
+                state.Modules.Add(moduleState);
+            }
+
+            return state;
+        }
+
+        private SaveMetadata CreateMetadata(string slot, string timestamp)
+        {
+            SaveMetadata metadata = _metadataProvider?.Invoke() ?? new SaveMetadata();
+
+            metadata.SlotId = slot;
+            metadata.Timestamp = timestamp;
+
+            return metadata;
+        }
+
+        private UniTask<bool> SaveToProviderAsync(string slot, SaveState state)
+        {
+            return SaveProviderService.Provider.SaveAsync(slot, state);
+        }
+
+        private static void LogSaveSuccess(string slot, SaveState state)
+        {
+            Logger.Log("Save", $"Saved slot '{slot}': {state.Modules.Count} module(s), {state.Modules.Sum(m => m.Entries.Count)} entrie(s) total.");
         }
 
         /// <inheritdoc/>
         public async UniTask<bool> LoadAsync(string slot)
         {
-            if (string.IsNullOrWhiteSpace(slot))
-                throw new ArgumentException("Slot must not be null or empty.", nameof(slot));
+            ValidateSlot(slot);
 
             LoadStarted?.Invoke(slot);
 
@@ -199,51 +228,15 @@ namespace HelloDev.Saving.Core
 
             try
             {
-                bool exists = await SaveProviderService.Provider.ExistsAsync(slot);
-
-                if (!exists)
-                {
-                    Logger.LogWarning("Save", $"No save data found for slot '{slot}'.");
-                    LoadCompleted?.Invoke(slot, false);
-                    return false;
-                }
-
-                SaveState state = await SaveProviderService.Provider.LoadAsync<SaveState>(slot);
+                SaveState state = await LoadSaveStateAsync(slot);
 
                 if (state == null)
                 {
-                    Logger.LogError("Save", $"Failed to load save state for slot '{slot}'.");
                     LoadCompleted?.Invoke(slot, false);
                     return false;
                 }
 
-                _lastLoadedSlotState = state;
-
-                Logger.LogVerbose("Save", $"Slot '{slot}': read {state.Modules.Count} module(s) from disk.");
-
-                success = true;
-
-                foreach (ISaveModule module in _modules.Values)
-                {
-                    SaveModuleState moduleState = state.FindModule(module.ModuleId);
-
-                    if (moduleState == null)
-                    {
-                        Logger.LogVerbose("Save", $"Module '{module.ModuleId}': no data found in slot '{slot}'.");
-                        continue;
-                    }
-
-                    bool moduleSuccess = await module.LoadAsync(moduleState);
-                    success &= moduleSuccess;
-                }
-
-                foreach (SaveModuleState moduleState in state.Modules)
-                {
-                    if (!_modules.ContainsKey(moduleState.ModuleId))
-                    {
-                        Logger.LogVerbose("Save", $"Module '{moduleState.ModuleId}': not registered yet, will apply once it registers.");
-                    }
-                }
+                success = await ApplySaveStateAsync(slot, state);
 
                 if (success)
                 {
@@ -251,16 +244,76 @@ namespace HelloDev.Saving.Core
                     IsLoaded = true;
                 }
 
-                Logger.Log("Save", $"Loaded slot '{slot}'.");
+                LogLoadSuccess(slot);
             }
             catch (Exception ex)
             {
-                Logger.LogError("Save", $"Exception while loading slot '{slot}': {ex.Message}");
+                Logger.LogError("Save", $"Exception while loading slot '{slot}': {ex}");
                 success = false;
             }
 
             LoadCompleted?.Invoke(slot, success);
+
             return success;
+        }
+
+        private async UniTask<SaveState> LoadSaveStateAsync(string slot)
+        {
+            bool exists = await SaveProviderService.Provider.ExistsAsync(slot);
+
+            if (!exists)
+            {
+                Logger.LogWarning("Save", $"No save data found for slot '{slot}'.");
+                return null;
+            }
+
+            SaveState state = await SaveProviderService.Provider.LoadAsync<SaveState>(slot);
+
+            if (state == null)
+            {
+                Logger.LogError("Save", $"Failed to load save state for slot '{slot}'.");
+                return null;
+            }
+
+            Logger.LogVerbose("Save", $"Slot '{slot}': read {state.Modules.Count} module(s) from disk.");
+
+            return state;
+        }
+
+        private async UniTask<bool> ApplySaveStateAsync(string slot, SaveState state)
+        {
+            _lastLoadedSlotState = state;
+
+            bool success = true;
+
+            foreach (ISaveModule module in _modules.Values)
+            {
+                SaveModuleState moduleState = state.FindModule(module.ModuleId);
+
+                if (moduleState == null)
+                {
+                    Logger.LogVerbose("Save", $"Module '{module.ModuleId}': no data found in slot '{slot}'.");
+                    continue;
+                }
+
+                bool moduleSuccess = await module.LoadAsync(moduleState);
+                success &= moduleSuccess;
+            }
+
+            foreach (SaveModuleState moduleState in state.Modules)
+            {
+                if (!_modules.ContainsKey(moduleState.ModuleId))
+                {
+                    Logger.LogVerbose("Save", $"Module '{moduleState.ModuleId}': not registered yet, will apply once it registers.");
+                }
+            }
+
+            return success;
+        }
+
+        private static void LogLoadSuccess(string slot)
+        {
+            Logger.Log("Save", $"Loaded slot '{slot}'.");
         }
     }
 }

@@ -9,16 +9,6 @@ using Logger = HelloDev.Logging.Logger;
 
 namespace HelloDev.Saving
 {
-    /// <summary>
-    /// Default save provider that uses JSON files in Unity's persistent data path.
-    /// This is a simple implementation suitable for development and single-player games.
-    ///
-    /// For production games, consider implementing your own ISaveProvider for:
-    /// - Cloud saves (Steam Cloud, PlayStation, Xbox, etc.)
-    /// - Encrypted saves
-    /// - Binary serialization for smaller files
-    /// - Integration with third-party save systems (Easy Save 3, etc.)
-    /// </summary>
     public class JsonSaveProvider : ISaveProvider
     {
         private readonly string _saveDirectory;
@@ -26,12 +16,6 @@ namespace HelloDev.Saving
         private readonly bool _prettyPrint;
         private readonly JsonSerializerSettings _jsonSettings;
 
-        /// <summary>
-        /// Creates a new JSON file save provider using Newtonsoft.Json.
-        /// </summary>
-        /// <param name="subdirectory">Subdirectory within Application.persistentDataPath (default: "Saves").</param>
-        /// <param name="fileExtension">File extension for save files (default: ".json").</param>
-        /// <param name="prettyPrint">If true, JSON output is formatted for readability.</param>
         public JsonSaveProvider(
             string subdirectory = "Saves",
             string fileExtension = ".json",
@@ -39,53 +23,53 @@ namespace HelloDev.Saving
         {
             _saveDirectory = Path.Combine(Application.persistentDataPath, subdirectory);
             _fileExtension = fileExtension.StartsWith(".") ? fileExtension : "." + fileExtension;
-            _prettyPrint = prettyPrint;
 
-            // Configure Newtonsoft settings – you can adjust these to your needs
             _jsonSettings = new JsonSerializerSettings
             {
                 Formatting = prettyPrint ? Formatting.Indented : Formatting.None,
-                NullValueHandling = NullValueHandling.Ignore,           // optional: omit nulls to reduce file size
-                MissingMemberHandling = MissingMemberHandling.Error,    // strict contract (throws on unknown fields)
+                NullValueHandling = NullValueHandling.Ignore,
+                MissingMemberHandling = MissingMemberHandling.Error,
                 Error = (obj, args) =>
                 {
-                    // Log deserialization errors but continue (handles per-field failures)
                     Logger.LogError("Save", $"JSON error: {args.ErrorContext.Error.Message}");
                     args.ErrorContext.Handled = true;
                 },
                 Converters =
                 {
-                    new StringEnumConverter() // saves enums as strings, not integers
+                    new StringEnumConverter()
                 }
             };
 
             EnsureDirectoryExists();
         }
 
-        /// <inheritdoc/>
-        public UniTask<bool> SaveAsync<T>(string key, T data)
+        public async UniTask<bool> SaveAsync<T>(string key, T data)
         {
             try
             {
                 EnsureDirectoryExists();
 
                 string filePath = GetFilePath(key);
-                string json = JsonConvert.SerializeObject(data, _jsonSettings);
+                string tempFilePath = filePath + ".tmp";
 
-                File.WriteAllText(filePath, json);
+                string json = await SerializeAsync(data);
+
+                await WriteFileAsync(tempFilePath, json);
+
+                ReplaceFile(tempFilePath, filePath);
 
                 Logger.LogVerbose("Save", $"Saved: {key}");
-                return UniTask.FromResult(true);
+
+                return true;
             }
             catch (Exception ex)
             {
-                Logger.LogError("Save", $"Save failed for '{key}': {ex.Message}");
-                return UniTask.FromResult(false);
+                Logger.LogError("Save", $"Save failed for '{key}': {ex}");
+                return false;
             }
         }
 
-        /// <inheritdoc/>
-        public UniTask<T> LoadAsync<T>(string key)
+        public async UniTask<T> LoadAsync<T>(string key)
         {
             try
             {
@@ -94,30 +78,30 @@ namespace HelloDev.Saving
                 if (!File.Exists(filePath))
                 {
                     Logger.LogWarning("Save", $"File not found: {key}");
-                    return UniTask.FromResult(default(T));
+                    return default;
                 }
 
-                string json = File.ReadAllText(filePath);
-                T data = JsonConvert.DeserializeObject<T>(json, _jsonSettings);
+                string json = await ReadFileAsync(filePath);
+
+                T data = await DeserializeAsync<T>(json);
 
                 Logger.LogVerbose("Save", $"Loaded: {key}");
-                return UniTask.FromResult(data);
+
+                return data;
             }
             catch (Exception ex)
             {
-                Logger.LogError("Save", $"Load failed for '{key}': {ex.Message}");
-                return UniTask.FromResult(default(T));
+                Logger.LogError("Save", $"Load failed for '{key}': {ex}");
+                return default;
             }
         }
 
-        /// <inheritdoc/>
         public UniTask<bool> ExistsAsync(string key)
         {
             string filePath = GetFilePath(key);
             return UniTask.FromResult(File.Exists(filePath));
         }
 
-        /// <inheritdoc/>
         public UniTask<bool> DeleteAsync(string key)
         {
             try
@@ -125,10 +109,14 @@ namespace HelloDev.Saving
                 string filePath = GetFilePath(key);
 
                 if (File.Exists(filePath))
-                {
                     File.Delete(filePath);
-                    Logger.LogVerbose("Save", $"Deleted: {key}");
-                }
+
+                string tempFile = filePath + ".tmp";
+
+                if (File.Exists(tempFile))
+                    File.Delete(tempFile);
+
+                Logger.LogVerbose("Save", $"Deleted: {key}");
 
                 return UniTask.FromResult(true);
             }
@@ -139,19 +127,17 @@ namespace HelloDev.Saving
             }
         }
 
-        /// <inheritdoc/>
         public UniTask<string[]> GetKeysAsync(string prefix = null)
         {
             try
             {
                 if (!Directory.Exists(_saveDirectory))
-                {
                     return UniTask.FromResult(Array.Empty<string>());
-                }
 
-                var files = Directory.GetFiles(_saveDirectory, $"*{_fileExtension}");
-                var keys = files
-                    .Select(f => Path.GetFileNameWithoutExtension(f))
+                string[] files = Directory.GetFiles(_saveDirectory, $"*{_fileExtension}");
+
+                string[] keys = files
+                    .Select(Path.GetFileNameWithoutExtension)
                     .Where(k => string.IsNullOrEmpty(prefix) || k.StartsWith(prefix))
                     .ToArray();
 
@@ -164,13 +150,39 @@ namespace HelloDev.Saving
             }
         }
 
-        /// <summary>
-        /// Gets the full file path for a save key.
-        /// Handles key sanitization for safe file names.
-        /// </summary>
+        private async UniTask<string> SerializeAsync<T>(T data)
+        {
+            return await UniTask.RunOnThreadPool(() => JsonConvert.SerializeObject(data, _jsonSettings));
+        }
+
+        private async UniTask<T> DeserializeAsync<T>(string json)
+        {
+            return await UniTask.RunOnThreadPool(() =>
+            {
+                return JsonConvert.DeserializeObject<T>(json, _jsonSettings);
+            });
+        }
+
+        private static async UniTask WriteFileAsync(string path, string contents)
+        {
+            await File.WriteAllTextAsync(path, contents);
+        }
+
+        private static async UniTask<string> ReadFileAsync(string path)
+        {
+            return await File.ReadAllTextAsync(path);
+        }
+
+        private static void ReplaceFile(string tempPath, string destinationPath)
+        {
+            if (File.Exists(destinationPath))
+                File.Delete(destinationPath);
+
+            File.Move(tempPath, destinationPath);
+        }
+
         private string GetFilePath(string key)
         {
-            // Replace dots with underscores for file safety, but preserve the key structure
             string safeKey = key.Replace("/", "_").Replace("\\", "_");
             return Path.Combine(_saveDirectory, $"{safeKey}{_fileExtension}");
         }
@@ -178,9 +190,7 @@ namespace HelloDev.Saving
         private void EnsureDirectoryExists()
         {
             if (!Directory.Exists(_saveDirectory))
-            {
                 Directory.CreateDirectory(_saveDirectory);
-            }
         }
     }
 }

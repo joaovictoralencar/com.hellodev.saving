@@ -112,21 +112,24 @@ namespace HelloDev.Saving.Core
         /// </summary>
         public IUnifiedSaveManager Manager { get; private set; }
 
+        /// <summary>
+        /// The save scheduler.
+        /// </summary>
+        public SaveScheduler Scheduler { get; private set; }
+
+        public AutoSaveController AutoSaveController { get; private set; }
+
+        /// <summary>
+        /// True once provider/serializer are configured and the manager
+        /// is ready for modules/savables to register.
+        /// </summary>
 #if ODIN_INSPECTOR
         [TabGroup("Main", "Diagnostics & Tools")]
         [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
         [ShowInInspector, ReadOnly]
 #endif
-        /// <summary>
-        /// True once provider/serializer are configured and the manager
-        /// is ready for modules/savables to register.
-        /// </summary>
         public bool IsInitialized { get; private set; }
 
-#if ODIN_INSPECTOR
-        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
-        [ShowInInspector, ReadOnly]
-#endif
         /// <summary>
         /// The slot most recently saved to or loaded from via this behaviour.
         /// Updated automatically whenever <see cref="SaveAsync(string)"/> or
@@ -134,6 +137,10 @@ namespace HelloDev.Saving.Core
         /// target for the parameterless <see cref="SaveAsync()"/>/<see cref="LoadAsync()"/>
         /// overloads and for <c>autoSaveOnDestroy</c>.
         /// </summary>
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
+        [ShowInInspector, ReadOnly]
+#endif
         public string ActiveSlot { get; private set; }
 
 #if ODIN_INSPECTOR
@@ -148,22 +155,20 @@ namespace HelloDev.Saving.Core
 #endif
         public int RegisteredSavableCount => Manager?.Modules?.Sum(m => m.Savables?.Count ?? 0) ?? 0;
 
+        /// <summary>
+        /// List of registered module IDs for quick inspection.
+        /// </summary>
 #if ODIN_INSPECTOR
         [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
         [ShowInInspector, ReadOnly]
 #endif
-        /// <summary>
-        /// List of registered module IDs for quick inspection.
-        /// </summary>
-        public System.Collections.Generic.List<string> RegisteredModuleIds =>
-            Manager?.Modules?.Select(m => m.ModuleId).ToList() ?? new System.Collections.Generic.List<string>();
+        public System.Collections.Generic.List<string> RegisteredModuleIds => Manager?.Modules?.Select(m => m.ModuleId).ToList() ?? new System.Collections.Generic.List<string>();
 
         // The full module list is kept for code access but hidden from the inspector.
 #if ODIN_INSPECTOR
         [HideInInspector]
 #endif
-        public System.Collections.Generic.IReadOnlyList<ISaveModule> RegisteredModules =>
-            Manager?.Modules?.ToList() ?? new System.Collections.Generic.List<ISaveModule>();
+        public System.Collections.Generic.IReadOnlyList<ISaveModule> RegisteredModules => Manager?.Modules?.ToList() ?? new System.Collections.Generic.List<ISaveModule>();
 
 #if ODIN_INSPECTOR
         [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
@@ -172,6 +177,25 @@ namespace HelloDev.Saving.Core
         public string PersistentDataPath => Application.persistentDataPath;
 
         private bool _shutdownSaveTriggered;
+
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Settings/Autosave")]
+#else
+[Header("Autosave")]
+#endif
+        [SerializeField]
+        [Tooltip("Slot to save to when autosave is triggered.")]
+        private bool enableAutoSave;
+        
+#if ODIN_INSPECTOR
+        [BoxGroup("Main/Settings/Autosave")]
+#endif
+        [SerializeField]
+        [Tooltip("Delay before an autosave executes after being requested.")]
+        private float autoSaveDelay = 5f;
+
+        public float AutoSaveDelay => autoSaveDelay;
+        public bool EnableAutoSave => enableAutoSave;
 
         #region Unity Lifecycle
 
@@ -202,6 +226,8 @@ namespace HelloDev.Saving.Core
 
         private void OnDestroy()
         {
+            Scheduler?.Dispose();
+
             if (Instance == this)
             {
                 Instance = null;
@@ -221,10 +247,12 @@ namespace HelloDev.Saving.Core
 
             Manager = new UnifiedSaveManager();
 
-            Manager.SaveStarted += slot => OnBeforeSave?.Invoke(slot);
-            Manager.SaveCompleted += (slot, success) => OnAfterSave?.Invoke(slot, success);
-            Manager.LoadStarted += slot => OnBeforeLoad?.Invoke(slot);
-            Manager.LoadCompleted += (slot, success) => OnAfterLoad?.Invoke(slot, success);
+            Scheduler = new SaveScheduler(Manager, autoSaveDelay);
+
+            Scheduler.SaveStarted += slot => OnBeforeSave?.Invoke(slot);
+            Scheduler.SaveCompleted += (slot, success) => OnAfterSave?.Invoke(slot, success);
+            Scheduler.LoadStarted += slot => OnBeforeLoad?.Invoke(slot);
+            Scheduler.LoadCompleted += (slot, success) => OnAfterLoad?.Invoke(slot, success);
 
             IsInitialized = true;
             Logger.Log("Save", "UnifiedSaveManagerBehaviour initialized.");
@@ -257,7 +285,7 @@ namespace HelloDev.Saving.Core
 
             ActiveSlot = slot;
 
-            return await Manager.SaveAsync(slot);
+            return await Scheduler.SaveAsync(slot);
         }
 
         /// <summary>
@@ -288,8 +316,13 @@ namespace HelloDev.Saving.Core
             }
 
             ActiveSlot = slot;
+            if (enableAutoSave)
+            {
+                AutoSaveController ??= new AutoSaveController(Scheduler, ActiveSlot, autoSaveDelay);
+                AutoSaveController.Start();
+            }
 
-            return await Manager.LoadAsync(slot);
+            return await Scheduler.LoadAsync(slot);
         }
 
         /// <summary>
@@ -304,6 +337,23 @@ namespace HelloDev.Saving.Core
             }
 
             return LoadAsync(ActiveSlot);
+        }
+
+        public void RequestAutoSave()
+        {
+            if (!IsInitialized)
+            {
+                Logger.LogWarning("Save", "Cannot request autosave before initialization.");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(ActiveSlot))
+            {
+                Logger.LogWarning("Save", "Cannot autosave: no ActiveSlot is set.");
+                return;
+            }
+
+            Scheduler.RequestAutoSave(ActiveSlot);
         }
 
         /// <summary>
