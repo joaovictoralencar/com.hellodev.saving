@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using HelloDev.Saving.Interfaces;
@@ -21,6 +22,16 @@ namespace HelloDev.Saving.Core
 
         private readonly float AutoSaveDelay;
 
+        /// <summary>
+        /// Save tasks currently in flight, keyed by slot. Lets concurrent
+        /// SaveAsync(slot) callers for the same slot (e.g. several systems
+        /// requesting a save the same frame) share one real save instead of
+        /// each queuing up behind <see cref="_operationLock"/> for a
+        /// separate, redundant save. Populated with a <c>.Preserve()</c>'d
+        /// UniTask so every caller can safely await the same instance.
+        /// </summary>
+        private readonly Dictionary<string, UniTask<bool>> _inFlightSaves = new();
+
         public bool IsSaving { get; private set; }
 
         public bool IsLoading { get; private set; }
@@ -40,10 +51,24 @@ namespace HelloDev.Saving.Core
         }
 
         /// <summary>
-        /// Immediately executes a save.
-        /// Manual saves should use this method.
+        /// Executes a save. If a save for <paramref name="slot"/> is already
+        /// in flight, returns that same pending task instead of starting a
+        /// second one. Manual saves should use this method.
         /// </summary>
-        public async UniTask<bool> SaveAsync(string slot)
+        public UniTask<bool> SaveAsync(string slot)
+        {
+            if (_inFlightSaves.TryGetValue(slot, out UniTask<bool> inFlight))
+            {
+                Logger.LogVerbose("Save", $"Slot '{slot}': save already in-flight, sharing pending result.");
+                return inFlight;
+            }
+
+            UniTask<bool> task = SaveInternalAsync(slot).Preserve();
+            _inFlightSaves[slot] = task;
+            return task;
+        }
+
+        private async UniTask<bool> SaveInternalAsync(string slot)
         {
             await _operationLock.WaitAsync();
 
@@ -71,13 +96,14 @@ namespace HelloDev.Saving.Core
             {
                 IsSaving = false;
                 _operationLock.Release();
+                _inFlightSaves.Remove(slot);
             }
         }
 
         /// <summary>
         /// Immediately executes a load.
         /// </summary>
-        public async UniTask<bool> LoadAsync(string slot)
+        public async UniTask<bool> LoadAsync(string slot, bool forceReload = false)
         {
             await _operationLock.WaitAsync();
 
@@ -87,7 +113,7 @@ namespace HelloDev.Saving.Core
 
                 LoadStarted?.Invoke(slot);
 
-                bool success = await _manager.LoadAsync(slot);
+                bool success = await _manager.LoadAsync(slot, forceReload);
 
                 LoadCompleted?.Invoke(slot, success);
 

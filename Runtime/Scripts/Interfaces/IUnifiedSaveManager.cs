@@ -58,20 +58,26 @@ namespace HelloDev.Saving.Interfaces
         UniTask<bool> SaveAsync(string slot);
 
         /// <summary>
-        /// Loads all registered modules.
+        /// Loads all registered modules for the given slot.
+        /// If this exact slot was already loaded and cached, the disk
+        /// read is skipped and the cached snapshot is reapplied to any
+        /// newly-registered modules instead — unless
+        /// <paramref name="forceReload"/> is true, which always re-reads
+        /// from the provider (e.g. after an external/cloud save change).
         /// </summary>
-        UniTask<bool> LoadAsync(string slot);
+        UniTask<bool> LoadAsync(string slot, bool forceReload = false);
 
         /// <summary>
         /// Saves all registered modules from the current active slot.
         /// </summary>
         UniTask<bool> SaveActiveSlotAsync();
-        
+
         /// <summary>
         /// Loads all registered modules from the current active slot.
+        /// See <see cref="LoadAsync(string, bool)"/> for caching behavior.
         /// </summary>
-        UniTask<bool> LoadActiveSlotAsync();
-        
+        UniTask<bool> LoadActiveSlotAsync(bool forceReload = false);
+
         /// <summary>
         /// Fired before saving starts.
         /// </summary>

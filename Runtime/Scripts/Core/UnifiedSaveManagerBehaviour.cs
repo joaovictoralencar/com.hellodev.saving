@@ -186,7 +186,7 @@ namespace HelloDev.Saving.Core
         [SerializeField]
         [Tooltip("Slot to save to when autosave is triggered.")]
         private bool enableAutoSave;
-        
+
 #if ODIN_INSPECTOR
         [BoxGroup("Main/Settings/Autosave")]
 #endif
@@ -305,9 +305,11 @@ namespace HelloDev.Saving.Core
         /// <summary>
         /// Loads from the given slot. Updates <see cref="ActiveSlot"/> to <paramref name="slot"/>.
         /// Safe to call more than once (e.g. a newly loaded scene re-requesting
-        /// load so its own just-registered savables pick up matching data).
+        /// load so its own just-registered savables pick up matching data) —
+        /// repeated calls for the same slot reuse the cached state instead of
+        /// re-reading from disk unless <paramref name="forceReload"/> is true.
         /// </summary>
-        public async UniTask<bool> LoadAsync(string slot)
+        public async UniTask<bool> LoadAsync(string slot, bool forceReload = false)
         {
             if (!IsInitialized)
             {
@@ -322,13 +324,13 @@ namespace HelloDev.Saving.Core
                 AutoSaveController.Start();
             }
 
-            return await Scheduler.LoadAsync(slot);
+            return await Scheduler.LoadAsync(slot, forceReload);
         }
 
         /// <summary>
         /// Loads from <see cref="ActiveSlot"/>.
         /// </summary>
-        public UniTask<bool> LoadAsync()
+        public UniTask<bool> LoadAsync(bool forceReload = false)
         {
             if (string.IsNullOrEmpty(ActiveSlot))
             {
@@ -336,7 +338,7 @@ namespace HelloDev.Saving.Core
                 return UniTask.FromResult(false);
             }
 
-            return LoadAsync(ActiveSlot);
+            return LoadAsync(ActiveSlot, forceReload);
         }
 
         public void RequestAutoSave()

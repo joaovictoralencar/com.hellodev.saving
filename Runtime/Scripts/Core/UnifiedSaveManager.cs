@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Cysharp.Threading.Tasks;
 using HelloDev.Saving.Data;
 using HelloDev.Saving.Interfaces;
@@ -27,12 +28,32 @@ namespace HelloDev.Saving.Core
         private Func<SaveMetadata> _metadataProvider;
 
         /// <summary>
-        /// Most recently loaded root state, kept so modules created
+        /// Most recently loaded/saved root state, kept so modules created
         /// after a load has already happened (e.g. a scene object whose
-        /// Awake fired late) can still pick up their data on registration.
-        /// Replaced wholesale on every successful <see cref="LoadAsync"/> call.
+        /// Awake fired late) can still pick up their data on registration,
+        /// and so repeated <see cref="LoadAsync"/> calls for the same slot
+        /// (e.g. 50 savables each requesting a load in Awake) don't each
+        /// hit the provider/disk. Replaced wholesale on every successful
+        /// disk-backed <see cref="LoadAsync"/> call, and also refreshed
+        /// after a successful <see cref="SaveAsync"/> for the same slot
+        /// (see <see cref="SaveAsync"/>) so a load immediately following
+        /// a save is a cache hit too.
         /// </summary>
         private SaveState _lastLoadedSlotState;
+
+        /// <summary>
+        /// Slot that <see cref="_lastLoadedSlotState"/> corresponds to.
+        /// A cache hit requires both the slot to match and
+        /// <see cref="_lastLoadedSlotState"/> to be non-null.
+        /// </summary>
+        private string _lastLoadedSlot;
+
+        /// <summary>
+        /// Per-slot fingerprint of the last state that was actually written
+        /// to the provider. Used by <see cref="SaveAsync"/> to skip the disk
+        /// write entirely when nothing changed since the last save.
+        /// </summary>
+        private readonly Dictionary<string, string> _lastSavedFingerprintBySlot = new();
 
         /// <inheritdoc/>
         public bool IsInitialized { get; private set; }
@@ -155,11 +176,35 @@ namespace HelloDev.Saving.Core
             try
             {
                 SaveState state = await CreateSaveStateAsync(slot);
+                string fingerprint = ComputeStateFingerprint(state);
 
-                success = await SaveToProviderAsync(slot, state);
+                bool unchanged = _lastSavedFingerprintBySlot.TryGetValue(slot, out string lastFingerprint)
+                                  && lastFingerprint == fingerprint;
+
+                if (unchanged)
+                {
+                    Logger.LogVerbose("Save", $"Slot '{slot}': no changes since last save, skipped disk write.");
+                    success = true;
+                }
+                else
+                {
+                    success = await SaveToProviderAsync(slot, state);
+
+                    if (success)
+                    {
+                        _lastSavedFingerprintBySlot[slot] = fingerprint;
+                        LogSaveSuccess(slot, state);
+                    }
+                }
 
                 if (success)
-                    LogSaveSuccess(slot, state);
+                {
+                    // What we just confirmed is on disk is also valid as the
+                    // load cache, so a LoadAsync(slot) right after this is a
+                    // cache hit instead of a redundant disk read.
+                    _lastLoadedSlotState = state;
+                    _lastLoadedSlot = slot;
+                }
             }
             catch (Exception ex)
             {
@@ -217,8 +262,32 @@ namespace HelloDev.Saving.Core
             Logger.Log("Save", $"Saved slot '{slot}': {state.Modules.Count} module(s), {state.Modules.Sum(m => m.Entries.Count)} entrie(s) total.");
         }
 
+        /// <summary>
+        /// Builds a cheap, order-independent fingerprint of a <see cref="SaveState"/>
+        /// from the already-serialized per-savable payloads, so repeated saves
+        /// of unchanged data can be detected without touching the provider.
+        /// Does not add serialization cost beyond what <see cref="CreateSaveStateAsync"/>
+        /// already does.
+        /// </summary>
+        private static string ComputeStateFingerprint(SaveState state)
+        {
+            StringBuilder sb = new();
+
+            foreach (SaveModuleState module in state.Modules.OrderBy(m => m.ModuleId, StringComparer.Ordinal))
+            {
+                sb.Append('|').Append(module.ModuleId);
+
+                foreach (SaveEntry entry in module.Entries.OrderBy(e => e.SaveId, StringComparer.Ordinal))
+                {
+                    sb.Append('~').Append(entry.SaveId).Append('=').Append(entry.Payload);
+                }
+            }
+
+            return sb.ToString();
+        }
+
         /// <inheritdoc/>
-        public async UniTask<bool> LoadAsync(string slot)
+        public async UniTask<bool> LoadAsync(string slot, bool forceReload = false)
         {
             ValidateSlot(slot);
 
@@ -228,7 +297,7 @@ namespace HelloDev.Saving.Core
 
             try
             {
-                SaveState state = await LoadSaveStateAsync(slot);
+                SaveState state = await LoadSaveStateAsync(slot, forceReload);
 
                 if (state == null)
                 {
@@ -256,10 +325,16 @@ namespace HelloDev.Saving.Core
 
             return success;
         }
+
         /// <inheritdoc/>
-        public UniTask<bool> LoadActiveSlotAsync()
+        public async UniTask<bool> LoadActiveSlotAsync(bool forceReload = false)
         {
-            return LoadAsync(ActiveSlot);
+            if (ActiveSlot == null)
+            {
+                Logger.LogWarning("Save", "No active slot set. Waiting for it to be set.");
+                await UniTask.WaitUntil(() => ActiveSlot != null);
+            }
+            return await LoadAsync(ActiveSlot, forceReload);
         }
         
         /// <inheritdoc/>
@@ -268,8 +343,19 @@ namespace HelloDev.Saving.Core
             return SaveAsync(ActiveSlot);
         }
 
-        private async UniTask<SaveState> LoadSaveStateAsync(string slot)
+        /// <summary>
+        /// Resolves the <see cref="SaveState"/> for a slot, either from the
+        /// in-memory cache (if the slot matches and <paramref name="forceReload"/>
+        /// is false) or by reading from <see cref="SaveProviderService"/>.
+        /// </summary>
+        private async UniTask<SaveState> LoadSaveStateAsync(string slot, bool forceReload)
         {
+            if (!forceReload && _lastLoadedSlotState != null && _lastLoadedSlot == slot)
+            {
+                Logger.LogVerbose("Save", $"Slot '{slot}': reusing cached state, skipped disk read.");
+                return _lastLoadedSlotState;
+            }
+
             bool exists = await SaveProviderService.Provider.ExistsAsync(slot);
 
             if (!exists)
@@ -294,6 +380,7 @@ namespace HelloDev.Saving.Core
         private async UniTask<bool> ApplySaveStateAsync(string slot, SaveState state)
         {
             _lastLoadedSlotState = state;
+            _lastLoadedSlot = slot;
 
             bool success = true;
 
