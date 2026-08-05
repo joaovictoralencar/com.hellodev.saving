@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
@@ -15,6 +16,9 @@ namespace HelloDev.Saving
         private readonly string _fileExtension;
         private readonly bool _prettyPrint;
         private readonly JsonSerializerSettings _jsonSettings;
+        
+        // The lock ensures only one file operation happens at a time
+        private readonly SemaphoreSlim _ioLock = new SemaphoreSlim(1, 1);
 
         public JsonSaveProvider(
             string subdirectory = "Saves",
@@ -45,6 +49,8 @@ namespace HelloDev.Saving
 
         public async UniTask<bool> SaveAsync<T>(string key, T data)
         {
+            await _ioLock.WaitAsync();
+
             try
             {
                 EnsureDirectoryExists();
@@ -67,10 +73,16 @@ namespace HelloDev.Saving
                 Logger.LogError("Save", $"Save failed for '{key}': {ex}");
                 return false;
             }
+            finally
+            {
+                _ioLock.Release();
+            }
         }
 
         public async UniTask<T> LoadAsync<T>(string key)
         {
+            await _ioLock.WaitAsync();
+
             try
             {
                 string filePath = GetFilePath(key);
@@ -94,6 +106,10 @@ namespace HelloDev.Saving
                 Logger.LogError("Save", $"Load failed for '{key}': {ex}");
                 return default;
             }
+            finally
+            {
+                _ioLock.Release();
+            }
         }
 
         public UniTask<bool> ExistsAsync(string key)
@@ -102,8 +118,10 @@ namespace HelloDev.Saving
             return UniTask.FromResult(File.Exists(filePath));
         }
 
-        public UniTask<bool> DeleteAsync(string key)
+        public async UniTask<bool> DeleteAsync(string key)
         {
+            await _ioLock.WaitAsync();
+
             try
             {
                 string filePath = GetFilePath(key);
@@ -118,12 +136,16 @@ namespace HelloDev.Saving
 
                 Logger.LogVerbose("Save", $"Deleted: {key}");
 
-                return UniTask.FromResult(true);
+                return true;
             }
             catch (Exception ex)
             {
                 Logger.LogError("Save", $"Delete failed for '{key}': {ex.Message}");
-                return UniTask.FromResult(false);
+                return false;
+            }
+            finally
+            {
+                _ioLock.Release();
             }
         }
 
