@@ -51,7 +51,7 @@ namespace HelloDev.Saving.Core
 
         private static IUnifiedSaveManager _instance;
         public static IUnifiedSaveManager Instance => _instance;
-
+        
         /// <inheritdoc/>
         public event Action<string> SaveStarted;
 
@@ -255,6 +255,17 @@ namespace HelloDev.Saving.Core
             LoadCompleted?.Invoke(slot, success);
 
             return success;
+        }
+        /// <inheritdoc/>
+        public UniTask<bool> LoadActiveSlotAsync()
+        {
+            return LoadAsync(ActiveSlot);
+        }
+        
+        /// <inheritdoc/>
+        public UniTask<bool> SaveActiveSlotAsync()
+        {
+            return SaveAsync(ActiveSlot);
         }
 
         private async UniTask<SaveState> LoadSaveStateAsync(string slot)

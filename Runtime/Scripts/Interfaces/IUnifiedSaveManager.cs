@@ -62,7 +62,16 @@ namespace HelloDev.Saving.Interfaces
         /// </summary>
         UniTask<bool> LoadAsync(string slot);
 
-
+        /// <summary>
+        /// Saves all registered modules from the current active slot.
+        /// </summary>
+        UniTask<bool> SaveActiveSlotAsync();
+        
+        /// <summary>
+        /// Loads all registered modules from the current active slot.
+        /// </summary>
+        UniTask<bool> LoadActiveSlotAsync();
+        
         /// <summary>
         /// Fired before saving starts.
         /// </summary>
