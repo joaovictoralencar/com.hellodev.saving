@@ -183,7 +183,7 @@ namespace HelloDev.Saving.Core
         [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
         [ShowInInspector, ReadOnly]
 #endif
-        private SaveState currentSave => (Manager as UnifiedSaveManager)?.LastLoadedSlotState;
+        public SaveState CurrentSave => (Manager as UnifiedSaveManager)?.LastLoadedSlotState;
 
         private bool _shutdownSaveTriggered;
 
