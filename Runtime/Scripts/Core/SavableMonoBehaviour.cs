@@ -21,6 +21,8 @@ namespace HelloDev.Saving.Core
     {
         [SerializeField, HideInInspector] private string _saveId;
 
+        [SerializeField] bool _loadAfterRegister = true;
+
         private ISaveModule _module;
 
         #region Properties
@@ -102,8 +104,10 @@ namespace HelloDev.Saving.Core
 
             _module = await SaveManager.RegisterModule(ModuleId);
             await _module.RegisterSavable(this);
-
             await OnAfterRegisterAsync();
+            
+            if (_loadAfterRegister)
+                await SaveManager.LoadActiveSlotAsync();
         }
 
         protected virtual void OnDestroy()
