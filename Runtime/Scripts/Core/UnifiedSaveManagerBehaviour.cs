@@ -259,6 +259,8 @@ namespace HelloDev.Saving.Core
 
             if (autoLoadOnStart && !string.IsNullOrEmpty(testSlotKey))
             {
+                ActiveSlot = testSlotKey;
+                
                 bool success = await LoadAsync(testSlotKey);
 
                 if (!success)
