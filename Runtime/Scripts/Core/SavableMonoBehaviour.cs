@@ -19,8 +19,7 @@ namespace HelloDev.Saving.Core
     /// </typeparam>
     public abstract class SavableMonoBehaviour<TState> : MonoBehaviour, ISavable where TState : class
     {
-        [SerializeField, HideInInspector]
-        private string _saveId;
+        [SerializeField, HideInInspector] private string _saveId;
 
         private ISaveModule _module;
 
@@ -62,7 +61,7 @@ namespace HelloDev.Saving.Core
         {
             if (state is not TState snapshot)
                 throw new InvalidOperationException($"Expected snapshot of type '{typeof(TState).FullName}', received '{state?.GetType().FullName ?? "null"}'.");
-            
+
 
             Logger.Log("Save", $"Loading state for {gameObject.name}[{typeof(TState).FullName}]", gameObject);
 
@@ -113,10 +112,10 @@ namespace HelloDev.Saving.Core
         }
 
         #endregion
-        
-        protected void SaveOnActiveSlotAsync()
+
+        protected async UniTask<bool> SaveOnActiveSlotAsync()
         {
-            SaveManager.SaveActiveSlotAsync();
+            return await SaveManager.SaveActiveSlotAsync();
         }
 
 #if UNITY_EDITOR
