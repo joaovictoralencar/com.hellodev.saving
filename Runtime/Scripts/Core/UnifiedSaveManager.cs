@@ -54,7 +54,9 @@ namespace HelloDev.Saving.Core
         /// write entirely when nothing changed since the last save.
         /// </summary>
         private readonly Dictionary<string, string> _lastSavedFingerprintBySlot = new();
-
+        
+        public SaveState LastLoadedSlotState => _lastLoadedSlotState;
+        
         /// <inheritdoc/>
         public bool IsInitialized { get; private set; }
 

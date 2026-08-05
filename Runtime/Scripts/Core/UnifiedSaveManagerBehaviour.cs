@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 using HelloDev.Saving.Interfaces;
 #if ODIN_INSPECTOR
@@ -9,6 +10,7 @@ using Logger = HelloDev.Logging.Logger;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
+using HelloDev.Saving.Data;
 
 namespace HelloDev.Saving.Core
 {
@@ -175,6 +177,13 @@ namespace HelloDev.Saving.Core
         [ShowInInspector, ReadOnly]
 #endif
         public string PersistentDataPath => Application.persistentDataPath;
+        
+#if ODIN_INSPECTOR
+        [TabGroup("Main", "Diagnostics & Tools")]
+        [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
+        [ShowInInspector, ReadOnly]
+#endif
+        private SaveState currentSave => (Manager as UnifiedSaveManager)?.LastLoadedSlotState;
 
         private bool _shutdownSaveTriggered;
 
@@ -454,5 +463,17 @@ namespace HelloDev.Saving.Core
         }
 
         #endregion
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused) AutoSaveController?.Stop();
+            else AutoSaveController?.Start();
+        }
+        
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused) AutoSaveController?.Stop();
+            else AutoSaveController?.Start();
+        }
     }
 }
