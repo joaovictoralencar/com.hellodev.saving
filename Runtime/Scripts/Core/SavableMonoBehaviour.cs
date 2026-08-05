@@ -19,7 +19,12 @@ namespace HelloDev.Saving.Core
     /// </typeparam>
     public abstract class SavableMonoBehaviour<TState> : MonoBehaviour, ISavable where TState : class
     {
-        [SerializeField, HideInInspector] private string _saveId;
+        [SerializeField, HideInInspector]
+        private string _saveId;
+
+        private ISaveModule _module;
+
+        #region Properties
 
         /// <inheritdoc/>
         public string SaveId => _saveId;
@@ -35,35 +40,32 @@ namespace HelloDev.Saving.Core
 
         /// <summary>
         /// Implement as a getter-only expression body (e.g.
-        /// <c>=> UnifiedSaveManagerBehaviour.Instance.Manager;</c>) rather
-        /// than a field initializer. Field initializers on a MonoBehaviour
-        /// run during Unity's internal object construction, before other
-        /// objects/singletons are guaranteed to exist - accessing them
-        /// there throws a NullReferenceException. A getter-only property
-        /// is evaluated lazily, the first time something actually reads it
-        /// (e.g. in Awake()), by which point it's safe.
+        /// <c>=> UnifiedSaveManagerBehaviour.Instance.Manager;</c>)
+        /// rather than a field initializer.
         /// </summary>
         public abstract IUnifiedSaveManager SaveManager { get; }
 
         /// <inheritdoc/>
         public Type StateType => typeof(TState);
 
-        private ISaveModule _module;
+        #endregion
 
-        /// <inheritdoc/>
+        #region Save Interface
+
         object ISavable.SaveState()
         {
             Logger.Log("Save", $"Saving state for {gameObject.name}[{typeof(TState).FullName}]", gameObject);
             return SaveState();
         }
 
-        /// <inheritdoc/>
         async UniTask ISavable.LoadState(object state)
         {
             if (state is not TState snapshot)
                 throw new InvalidOperationException($"Expected snapshot of type '{typeof(TState).FullName}', received '{state?.GetType().FullName ?? "null"}'.");
+            
 
             Logger.Log("Save", $"Loading state for {gameObject.name}[{typeof(TState).FullName}]", gameObject);
+
             await LoadState(snapshot);
         }
 
@@ -77,26 +79,44 @@ namespace HelloDev.Saving.Core
         /// </summary>
         protected abstract UniTask LoadState(TState state);
 
+        #endregion
+
+        #region Registration Lifecycle
+
+        protected virtual UniTask OnBeforeRegisterAsync()
+        {
+            return UniTask.CompletedTask;
+        }
+
+        protected virtual UniTask OnAfterRegisterAsync()
+        {
+            return UniTask.CompletedTask;
+        }
+
         protected virtual async void Awake()
         {
 #if UNITY_EDITOR
             EnsureUniqueSaveId();
 #endif
 
+            await OnBeforeRegisterAsync();
+
             _module = await SaveManager.RegisterModule(ModuleId);
             await _module.RegisterSavable(this);
+
+            await OnAfterRegisterAsync();
         }
 
-        /// <summary>
-        /// Unregisters from the owning module so it doesn't hold a stale
-        /// reference to this instance across scene unloads/destruction.
-        /// </summary>
         protected virtual void OnDestroy()
         {
             _module?.UnregisterSavable(this);
         }
 
+        #endregion
+
 #if UNITY_EDITOR
+
+        #region Editor
 
         private void OnValidate()
         {
@@ -137,10 +157,11 @@ namespace HelloDev.Saving.Core
             }
 
             if (changed)
-            {
                 EditorUtility.SetDirty(this);
-            }
         }
+
+        #endregion
+
 #endif
     }
 }
