@@ -67,7 +67,7 @@ namespace HelloDev.Saving.Core
         public bool IsLoaded { get; private set; }
 
         /// <inheritdoc/>
-        public string ActiveSlot { get; private set; }
+        public string ActiveSlot { get; set; }
 
         /// <inheritdoc/>
         public IReadOnlyCollection<ISaveModule> Modules => _modules.Values;

@@ -29,7 +29,7 @@ namespace HelloDev.Saving.Interfaces
         /// <summary>
         /// Currently loaded slot.
         /// </summary>
-        string ActiveSlot { get; }
+        string ActiveSlot { get; set; }
 
         /// <summary>
         /// Registered save modules.

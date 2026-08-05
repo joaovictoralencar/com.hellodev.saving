@@ -143,8 +143,8 @@ namespace HelloDev.Saving.Core
         [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
         [ShowInInspector, ReadOnly]
 #endif
-        public string ActiveSlot { get; private set; }
-
+        public string ActiveSlot => Manager?.ActiveSlot;
+        
 #if ODIN_INSPECTOR
         [BoxGroup("Main/Diagnostics & Tools/Runtime Status")]
         [ShowInInspector, ReadOnly]
@@ -268,7 +268,7 @@ namespace HelloDev.Saving.Core
 
             if (autoLoadOnStart && !string.IsNullOrEmpty(testSlotKey))
             {
-                ActiveSlot = testSlotKey;
+                Manager.ActiveSlot = testSlotKey;
                 
                 bool success = await LoadAsync(testSlotKey);
 
@@ -294,7 +294,7 @@ namespace HelloDev.Saving.Core
                 return false;
             }
 
-            ActiveSlot = slot;
+            Manager.ActiveSlot = slot;
 
             return await Scheduler.SaveAsync(slot);
         }
@@ -328,7 +328,8 @@ namespace HelloDev.Saving.Core
                 return false;
             }
 
-            ActiveSlot = slot;
+            Manager.ActiveSlot = slot;
+            
             if (enableAutoSave)
             {
                 AutoSaveController ??= new AutoSaveController(Scheduler, ActiveSlot, autoSaveDelay);
