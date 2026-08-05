@@ -113,6 +113,11 @@ namespace HelloDev.Saving.Core
         }
 
         #endregion
+        
+        protected void SaveOnActiveSlotAsync()
+        {
+            SaveManager.SaveActiveSlotAsync();
+        }
 
 #if UNITY_EDITOR
 
