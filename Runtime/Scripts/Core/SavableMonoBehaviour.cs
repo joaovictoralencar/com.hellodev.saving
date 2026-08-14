@@ -68,7 +68,13 @@ namespace HelloDev.Saving.Core
             Logger.Log("Save", $"Loading state for {gameObject.name}[{typeof(TState).FullName}]", gameObject);
 
             await LoadState(snapshot);
+            OnAfterLoadState();
         }
+        
+        protected virtual void OnAfterLoadState()
+        {
+        }
+        
 
         /// <summary>
         /// Captures the current state.
