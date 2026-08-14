@@ -2,7 +2,9 @@ using System;
 using System.Linq;
 using Cysharp.Threading.Tasks;
 using HelloDev.Saving.Interfaces;
+#if ODIN_INSPECTOR
 using Sirenix.OdinInspector;
+#endif
 using UnityEditor;
 using UnityEngine;
 using Logger = HelloDev.Logging.Logger;
@@ -19,8 +21,21 @@ namespace HelloDev.Saving.Core
     /// </typeparam>
     public abstract class SavableMonoBehaviour<TState> : MonoBehaviour, ISavable where TState : class
     {
+#if ODIN_INSPECTOR
+        [FoldoutGroup("Save Settings")]
+#endif
         [SerializeField, HideInInspector] private string _saveId;
 
+#if ODIN_INSPECTOR
+        [FoldoutGroup("Save Settings")]
+        [LabelText("Save/Load Enabled")]
+        [Tooltip("When off, this savable never registers with the save module and is completely invisible to it.")]
+#endif
+        [SerializeField] private bool _saveLoadEnabled = true;
+
+#if ODIN_INSPECTOR
+        [FoldoutGroup("Save Settings")]
+#endif
         [SerializeField] bool _loadAfterRegister = true;
 
         private ISaveModule _module;
@@ -29,6 +44,12 @@ namespace HelloDev.Saving.Core
 
         /// <inheritdoc/>
         public string SaveId => _saveId;
+
+        /// <summary>
+        /// When false, this savable skips registration entirely and never
+        /// participates in save/load for its module.
+        /// </summary>
+        public bool SaveLoadEnabled => _saveLoadEnabled;
 
 #if ODIN_INSPECTOR
         [ShowInInspector, ReadOnly]
@@ -105,6 +126,14 @@ namespace HelloDev.Saving.Core
 #if UNITY_EDITOR
             EnsureUniqueSaveId();
 #endif
+
+            // Flag is off: skip registration entirely, this savable is
+            // invisible to the save module for the rest of its lifetime.
+            if (!_saveLoadEnabled)
+            {
+                Logger.LogVerbose("Save", $"Save/Load disabled for {gameObject.name}[{typeof(TState).FullName}], skipping registration", gameObject);
+                return;
+            }
 
             await OnBeforeRegisterAsync();
 
