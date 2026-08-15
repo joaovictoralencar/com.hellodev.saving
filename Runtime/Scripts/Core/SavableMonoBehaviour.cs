@@ -161,7 +161,7 @@ namespace HelloDev.Saving.Core
 
         #region Editor
 
-        private void OnValidate()
+        protected virtual void OnValidate()
         {
             EnsureUniqueSaveId();
         }
