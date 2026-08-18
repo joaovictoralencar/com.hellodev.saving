@@ -40,6 +40,10 @@ namespace HelloDev.Saving.Core
 
         private ISaveModule _module;
 
+        // Debug-only cache of the last snapshot that was saved or loaded,
+        // kept as the raw TState object so Odin can draw its fields directly.
+        private TState _lastSnapshot;
+
         #region Properties
 
         /// <inheritdoc/>
@@ -56,6 +60,11 @@ namespace HelloDev.Saving.Core
         [PropertyOrder(-100)]
         [LabelText("Save Id")]
         private string DebugSaveId => _saveId;
+
+        [FoldoutGroup("Debug")]
+        [ShowInInspector, ReadOnly]
+        [LabelText("Last Snapshot")]
+        private TState DebugLastSnapshot => _lastSnapshot;
 #endif
 
         public abstract string ModuleId { get; protected set; }
@@ -77,7 +86,12 @@ namespace HelloDev.Saving.Core
         object ISavable.SaveState()
         {
             Logger.Log("Save", $"Saving state for {gameObject.name}[{typeof(TState).FullName}]", gameObject);
-            return SaveState();
+
+            TState state = SaveState();
+
+            _lastSnapshot = state;
+
+            return state;
         }
 
         async UniTask ISavable.LoadState(object state)
@@ -89,9 +103,12 @@ namespace HelloDev.Saving.Core
             Logger.Log("Save", $"Loading state for {gameObject.name}[{typeof(TState).FullName}]", gameObject);
 
             await LoadState(snapshot);
+
+            _lastSnapshot = snapshot;
+
             OnAfterLoadState();
         }
-        
+
         protected virtual void OnAfterLoadState()
         {
         }
@@ -123,26 +140,33 @@ namespace HelloDev.Saving.Core
 
         protected virtual async void Awake()
         {
+            try
+            {
 #if UNITY_EDITOR
-            EnsureUniqueSaveId();
+                EnsureUniqueSaveId();
 #endif
 
-            // Flag is off: skip registration entirely, this savable is
-            // invisible to the save module for the rest of its lifetime.
-            if (!_saveLoadEnabled)
-            {
-                Logger.LogVerbose("Save", $"Save/Load disabled for {gameObject.name}[{typeof(TState).FullName}], skipping registration", gameObject);
-                return;
-            }
+                // Flag is off: skip registration entirely, this savable is
+                // invisible to the save module for the rest of its lifetime.
+                if (!_saveLoadEnabled)
+                {
+                    Logger.LogVerbose("Save", $"Save/Load disabled for {gameObject.name}[{typeof(TState).FullName}], skipping registration", gameObject);
+                    return;
+                }
 
-            await OnBeforeRegisterAsync();
+                await OnBeforeRegisterAsync();
 
-            _module = await SaveManager.RegisterModule(ModuleId);
-            await _module.RegisterSavable(this);
-            await OnAfterRegisterAsync();
+                _module = await SaveManager.RegisterModule(ModuleId);
+                await _module.RegisterSavable(this);
+                await OnAfterRegisterAsync();
             
-            if (_loadAfterRegister)
-                await SaveManager.LoadActiveSlotAsync();
+                if (_loadAfterRegister)
+                    await SaveManager.LoadActiveSlotAsync();
+            }
+            catch (Exception e)
+            {
+                Logger.LogError("Save", $"Failed to register {gameObject.name}[{typeof(TState).FullName}]. Error: {e.Message}\n Stack Trace:\n{e.StackTrace}", gameObject);
+            }
         }
 
         protected virtual void OnDestroy()
